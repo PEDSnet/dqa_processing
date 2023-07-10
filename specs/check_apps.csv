@@ -1,0 +1,8 @@
+﻿tbl_name_pre,tbl_name_post,check_apps_no,check_app_first,check_app_second,check_app_third,first_col,second_col,third_col
+dc_output,dc_output_pp,2,rows,person,,prop_total_change,prop_total_pt_change,
+uc_output,uc_output,1,rows,,,unmapped_prop,,
+vc_vs_violations,vc_vs_violations_pp,1,rows,,,tot_prop,,
+mf_visitid,mf_visitid_pp,1,rows,,,prop_missing_visits_total,,
+pf_output,pf_output_pp,1,visits,,,fact_visits_prop,,
+bmc_gen_output,bmc_gen_output_pp,1,rows,,,best_row_prop,,
+dcon_output,dcon_output_pp,1,concordance,,,yr_prop,,

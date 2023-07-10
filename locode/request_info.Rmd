@@ -1,0 +1,134 @@
+---
+title: "Title of the Request"
+output:
+  pdf_document: default
+  html_notebook: default
+---
+
+# PEDSnet Data Request
+
+**Please treat content as confidential**
+```{r include=FALSE}
+require(tibble)
+require(knitr)
+source('../code/config.R')
+source('../code/req_info.R')
+```
+
+## Request Information
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, paged.print=FALSE}
+kable(tribble( ~Item, ~Value,
+               'Title', config('title'),
+               'Requester', config('requester_name'),
+               'Sponsoring Member', config('requester_site'),
+               'CDM Version', as.character(config('cdm_version')),
+               'Package Version', as.character(config('req_version')))
+```
+
+## Request Summary
+
+This package provides the code to fulfil a PEDSnet data request.
+
+### Request Description
+
+Provide a summary of the scientific specification here.
+
+### Inclusion Criteria
+
+The criteria for inclusion of data in the request are described here.
+
+#### Cohort Definition
+
+If the request involves creation of one or more cohorts, you may wish
+to summarize their characteristics here
+
+### Output
+
+The data to be returned in response to the request are described
+here.
+
+Please include information on the elements of the data that relate to
+regulatory status: aggregate or person-level data, presence of dates
+or ZIP codes that constitute elements of a HIPPA limited dataset.  If
+the level of data returned to the DCC differs from what will be
+returned to the requester, please note this.
+
+### Prerequisites
+
+This query operates on data structured according to the CDM type and
+version described above.  Table names and column names must be in
+lower case; if your current database uses uppercase, you may use the
+`local/lowercase_views.sql` script to create views with appropriate
+case.  When configured as distributed, the package requires read
+access to CDM fact and vocabulary tables, and the ability to create
+temporary tables.  If you choose to define a results schema and retain
+intermediates, write access to that schema is required as well.
+
+In this query, *you will need write access `results_schema` as well as
+the `cohort_schema` (these could be the same schema) and read access
+to the `cdm_schema`.*
+
+In order to access the data, it must be executed in an R environment
+with the following packages and minimum versions:
+
+Package | Minimum version
+------- | ---------------
+R |  3.4.0
+DBI |  0.7
+dplyr | 0.7.4
+dbplyr | 1.2.1
+readr | 1.1.1
+rlang | 0.2.0
+stringr | 1.2.0
+tibble | 1.4.2
+purrr | 0.2.4
+magrittr | 1.5
+tidyr | 0.7.2
+lubridate | 1.7.4
+
+In general, installing the current version of the `tidyverse` package
+will install the remaining non-DBI packages. In addition to these, you
+need a DBI-compliant database connector (e.g. `ROracle`,
+`RpostgreSQL`) able to connect to your database.  You may also find
+the `Argos` package (available on GitHub as `baileych/ohdsi-argos`) a
+useful adjunct for storing database connection info outside the code,
+but this is optional.
+
+Finally, the code requires write access to the `local` and `results`
+subdirectories within the query package tree.
+
+### Execution Process
+
+After uncompressing the request package, please
+
+ 1. Edit the file `site/run.R`, following the instructions in the
+    file, to reflect site-specific configuration for this request. This
+    includes the top level directory of this package. It also includes
+    information for settings on retaining intermediates and setting
+    results and cohort schemas.
+2. If you haven't pointed to a version elsewhere, edit the file
+   `site/site_info.R`, following the instructions in the file, to
+   reflect metadata about your site, and to describe your database
+   structure. The information in this file describes a specific
+   version of the CDM, and the content can be reused across all data
+   requests targeted to that version of the CDM.
+ 3. Execute the query package using either
+  * `Rscript run.R` from the shell prompt, or
+  * Starting an R session, opening the file called `run.R`, setting
+    your base_dir to the directory where your package is located and
+    then executing `source('run.R')` in the console, or
+  * Starting an R session, setting the working directory to the `site`
+    subdirectory of the package, and executing `source('run.R')` in
+    that session.
+ 4. When execution completes, return the contents of the `results`
+    directory to the DCC.  You can use secure file transfer, or if you
+    use email you can encrypt the data to GPG/PGP public key EB9721F7
+    (available via pgp.mit.edu; fingerprint A059 C3FF FF1C 8A13 FB9C
+    3676 1BAE E514 EB97 21F7).  You should retain the contents of the
+    `local` directory for reference.
+
+If you have any questions, please do not hesitate to contact
+<pedsnetdcc@email.chop.edu>.
+
+Thanks!

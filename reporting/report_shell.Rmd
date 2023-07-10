@@ -1,0 +1,170 @@
+---
+title: "Feasibility Summary"
+output:
+  html_document:
+    df_print: paged
+    toc: yes
+    toc_collapsed: yes
+    toc_float: yes
+---
+
+```{r setup, include=FALSE}
+# Default taken from R notebook behavior: when knitting, wd will always be location of notebook
+base_dir <- '..'
+Sys.setenv(PEDSNET_SKIP_REQUEST_EXECUTION=1)
+tryCatch(source('../site/run.R'),
+         error = function (e) message(e)) # May not be able to make db connection
+
+# Set to "local" to read data from ../results, or another value to read from db
+data_source <- if_else(config('execution_mode') == 'distribution', 'local', 'not_local')
+
+require(tidyr)
+require(knitr)
+require(kableExtra)
+require(stringr)
+require(tibble)
+require(ggplot2)
+
+get_results <- function(tbl_name) {
+  if (data_source == 'local') {
+    rslt <- read_csv(paste0('../results/', tbl_name, '.csv'))
+  }
+  else {
+    rslt <- results_tbl(tbl_name) %>% collect()
+  }
+rslt
+}
+
+prettify_kable <- function(data) {
+  data %>% kable(digits = 4, format.args = list(big.mark = ',')) %>%
+    kable_styling(bootstrap_options = c("striped", "hover")) %>%
+    column_spec(1, bold = T, border_right = T)
+}
+
+cohort <- get_results('my_cohort_table')
+```
+
+## Notices
+
+### Feasibility Query
+
+The data presented here are the results of a feasbility evaluation performed by
+the PEDSnet data and analytic coordinating center.  Because feasibility queries
+require efficient completion, they entail less consultation regarding study
+design, resource allocation, and data quality analysis than full study
+execution, feasibility results may incompletely predict observations made
+during the study.
+
+### Confidentiality
+
+Please treat the contents of this report as confidential, and do not
+redistrubute beyond PEDSnet staff and the requester.
+
+## Request Information
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, paged.print=FALSE}
+tribble( ~Item, ~Value,
+         'Title', config('title'),
+         'Requester', config('requester_name'),
+         'Sponsoring Member', config('requester_site'),
+         'CDM Version', as.character(config('cdm_version')),
+         'Request Version', as.character(config('req_version'))) %>%
+  prettify_kable()
+
+```
+
+## Specification
+
+### Request Description
+
+Brief narrative summary of the request.
+
+### Cohort Definition
+
+* List the logical steps of the query
+
+### Feasibility Notes
+
+* List any observations made during query development that may be useful for
+  assessing study feasibility
+
+## Results
+
+The cohort comprises `r summarise(cohort, ct = n_distinct(person_id)) %>% pull(ct)`
+patients from `r summarise(cohort, ct = n_distinct(site)) %>% pull(ct)` sites.
+
+### Attrition
+
+```{r attrition, echo=FALSE}
+# DBI doesn't have a good way to interrogate tables in a specified schema,
+# so you have to list the step logs you want to summarise (e.g. DCC + remote
+# sites).
+step_log <- list(config('site')) %>%
+  map(.f = function(x) {
+    get_results(paste0(x, '_steps'))
+  }) %>%
+  reduce(.f = dplyr::union)
+
+step_log %>%
+  arrange(stamp) %>%
+  select(cohort, persons) %>%
+  mutate(persons = if_else(persons > 0L & persons < 11L,
+                           as.integer(NA), as.integer(persons))) %>%
+  mutate(percent_prior = round(100 * persons /
+                                 coalesce(lag(persons), persons), 2)) %>%
+  prettify_kable()
+```
+
+### Site stratification
+
+This stratification comprises the final included cohort.
+
+```{r site, echo=FALSE}
+total <- cohort %>% ungroup() %>% distinct(person_id) %>% count() %>% pull(n)
+cohort %>% group_by(site) %>%
+  summarize(persons = n_distinct(person_id)) %>%
+  mutate(persons = if_else(persons > 0L & persons < 11L,
+                           as.integer(NA), as.integer(persons))) %>%
+  mutate(percent_total = round(100 * persons / total, 2)) %>%
+  prettify_kable()
+```
+
+### Demographics
+
+This stratification comprises the final included cohort. Demographic
+categories from the typical PHS398 set not listed here reflect zero
+cohort members in that category.
+
+```{r demog, echo=FALSE}
+c_names <- vocabulary_tbl('concept') %>%
+  filter(domain_id %in% c('Gender', 'Race', 'Ethnicity')) %>%
+  select(concept_id, concept_name) %>% collect()
+
+demog <- cdm_tbl('person') %>%
+  semi_join(distinct(cohort, person_id),
+            by = 'person_id', copy = TRUE) %>% collect() %>%
+  inner_join(select(c_names, concept_id, sex = concept_name),
+             by = c('gender_concept_id' = 'concept_id')) %>%
+  inner_join(select(c_names, concept_id, race = concept_name),
+             by = c('race_concept_id' = 'concept_id')) %>%
+  inner_join(select(c_names, concept_id, hispanic = concept_name),
+             by = c('ethnicity_concept_id' = 'concept_id')) %>%
+  select(person_id, sex, race, hispanic)
+
+h_cts <- demog %>% group_by(sex, hispanic) %>% summarise(persons = n()) %>%
+  mutate(persons = if_else(persons > 0L & persons < 11L,
+                           as.integer(NA), as.integer(persons))) %>%
+  pivot_wider(names_from = sex, values_from = persons) %>% rename(group = hispanic)
+r_cts <- demog %>% group_by(sex, race) %>% summarise(persons = n()) %>%
+  mutate(persons = if_else(persons > 0L & persons < 11L,
+                           as.integer(NA), as.integer(persons))) %>%
+  pivot_wider(names_from = sex, values_from = persons) %>% rename(group = race)
+
+prettify_kable(r_cts)
+prettify_kable(h_cts)
+
+```
+
+### _Add report summary content here as subsections_
+
+## End
