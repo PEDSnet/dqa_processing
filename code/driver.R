@@ -96,11 +96,12 @@ suppressPackageStartupMessages(library(methods))
               name='thresholds_pedsnet_standard',
               temporary=FALSE)
 
-  redcap_prev <- .qual_tbl(name='dqa_issues_redcap_op_1291',
+  redcap_prev <- .qual_tbl(name='dqa_issues_redcap_op_1510',
                            schema='dqa_rox',
                            db=config('db_src_prev'))
   thresholds_this_version <-
-    compute_new_thresholds(redcap_tbl=redcap_prev)
+    compute_new_thresholds(redcap_tbl=redcap_prev,
+                           previous_thresholds=results_tbl_other('thresholds'))
 
 
   copy_to_new(df=thresholds_this_version,

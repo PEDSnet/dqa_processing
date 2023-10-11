@@ -22,7 +22,7 @@ pull_dqa_table_names <- function(db=config('db_src'),
     # select(! matches('*_pp_*'))
     filter(! str_detect(table,'pp')) %>%
     filter(str_detect(table,'output|violations')) %>%
-    filter(! str_detect(table, 'fot')) %>%
+    filter(! str_detect(table, 'fot|dcon')) %>%
     filter(! str_detect(table, 'thrshld')) %>%
     filter(! str_detect(table, 'old'))
 
@@ -191,7 +191,8 @@ set_broad_thresholds <- function(check_tbl,
 #'
 
 compute_new_thresholds <- function(redcap_tbl,
-                                   threshold_tbl=read_codeset('threshold_limits_test','ccncc'),
+                                   previous_thresholds,
+                                   threshold_tbl=read_codeset('threshold_limits','ccncc'),
                                    site_name_tbl=read_codeset('site_names',col_types = 'c')) {
 
   # all_sites <-
@@ -206,6 +207,32 @@ compute_new_thresholds <- function(redcap_tbl,
    copy_to_new(df=thresholds_sites)
 
   version_num <- config('previous_version')
+  version_num_current <- config('current_version')
+  
+  thresholds_previous <- 
+    previous_thresholds %>% 
+    rename(threshold_previous = newthreshold) %>% 
+    select(check_type, 
+           check_name_app,
+           check_name,
+           threshold_previous,
+           application,
+           site,
+           threshold_version) 
+  
+  thresholds_previous_merged <- 
+    thresholds_sites_db %>% 
+    left_join(
+      thresholds_previous,
+      copy=TRUE
+    ) %>% 
+    mutate(
+      threshold_version_global = case_when(abs(threshold-threshold_previous) > 0.01 ~ version_num,
+                                           TRUE ~ 'standard'),
+      threshold=case_when(abs(threshold-threshold_previous) > 0.01 ~ threshold_previous,
+                          TRUE ~ threshold)
+    )
+  
 
   redcap_new <-
     redcap_tbl %>%
@@ -223,17 +250,21 @@ compute_new_thresholds <- function(redcap_tbl,
     rename(oldthreshold=threshold)
 
   new_thresholds <-
-    thresholds_sites_db %>%
+    thresholds_sites_merged %>%
     left_join(
       redcap_new,
       by=c('site','check_name','check_name_app'),
       copy=TRUE
     ) %>% mutate(threshold_version=version_num) %>%
-    mutate(oldthreshold=threshold,
-           oldthreshold=as.double(oldthreshold),
-           newthreshold=case_when(is.na(newthreshold) ~ oldthreshold,
-                                  TRUE ~ newthreshold),
-           threshold=as.double(threshold))
+    mutate(oldthreshold=
+             case_when(is.na(oldthreshold) ~ threshold,
+                       TRUE ~ oldthreshold)) %>% 
+    mutate(threshold_version_global=
+             case_when(!is.na(newthreshold) & abs(newthreshold-oldthreshold) > 0.01 ~ version_num_current,
+                       TRUE ~ threshold_version_global)) %>% 
+    mutate(newthreshold=
+             case_when(is.na(newthreshold) ~ oldthreshold,
+                       TRUE ~ newthreshold))
 
 }
 
@@ -318,7 +349,7 @@ pull_dqa_table_names_post <- function(schema_name=config('results_schema')) {
     dplyr::bind_rows() %>%
     # select(! matches('*_pp_*'))
     filter(str_detect(table,'_pp_|uc_output')) %>%
-    filter(! str_detect(table,'uc_by_year|thrshld|byyr')) %>%
+    filter(! str_detect(table,'uc_by_year|thrshld|byyr|dcon')) %>%
     filter(! str_detect(table, 'old')) %>%
     filter(! str_detect(table, 'mistake')) %>%
     filter(! str_detect(table, 'concepts'))
@@ -384,6 +415,9 @@ pull_dqa_table_names_post <- function(schema_name=config('results_schema')) {
        thrshld_new_pp_cols <- thrshld_new_pp %>%
           select(site,threshold,
                  threshold_operator,starts_with(c('check_name','value_output')))
+       
+       if('check_name_app' %in% names(thrshld_new_pp_cols)) {thrshld_new_pp_cols <- thrshld_new_pp_cols %>% select(- check_name_app)}
+       
        final <- pivot_longer(thrshld_new_pp_cols,
                     cols=starts_with(c('check_name_app','value_output')),
                     names_pattern='(value_output|check_name_app)(.*)',

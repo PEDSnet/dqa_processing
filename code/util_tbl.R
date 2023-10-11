@@ -94,7 +94,7 @@ results_tbl <- function(name, db = config('db_src'),
 }
 
 
-results_tbl_other <- function(name, db = config('db_src'),
+results_tbl_other <- function(name, db = config('db_src_prev'),
                         results_tag =  TRUE, local_tag = FALSE) {
   .qual_tbl(intermed_name(name, temporary = FALSE,
                           results_tag = results_tag,

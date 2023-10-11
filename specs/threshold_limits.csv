@@ -1,4 +1,4 @@
-﻿check_type,check_name,threshold,threshold_operator
+check_type,check_name,threshold,threshold_operator
 uc,uc_ml,0.2,gt
 uc,uc_im,0.1,gt
 uc,uc_pr,0.2,gt
@@ -107,6 +107,6 @@ vc,vc_im_dose,0.3,gt
 vs,vs_ob_cid,0.4,gt
 vc,vc_co_cscid,0,gt
 vc,vc_co_cid,0,gt
-dcon_pts,dcon_pts_ckd-dx_htn-rx,0.2,lt
-dcon_visits,dcon_ed_visits_conds,0.85,lt
-dcon_visits,dcon_ip_visits_conds,0.9,lt
+vs,vs_pd_race_cid,0,gt
+vs,vs_adt_cid,0.05,gt
+vs,vs_pd_eth_cid,0,gt

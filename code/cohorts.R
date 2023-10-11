@@ -441,7 +441,8 @@ apply_dcon_pp <- function(dcon_tbl,
              visits_prop=value_visits/tot_vis)
   }else{
   dcon_overall <- dcon_tbl %>%
-    group_by(check_type, database_version, check_name, check_desc, cohort, threshold, threshold_operator)%>%
+    #group_by(check_type, database_version, check_name, check_desc, cohort, threshold, threshold_operator)%>%
+    group_by(check_type, database_version, check_name, check_desc, cohort) %>%  # threshold, threshold_operator)%>%
     summarise(value=sum(value,na.rm=TRUE))%>%
     ungroup()%>%
     mutate(site='total')
