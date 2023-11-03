@@ -126,7 +126,7 @@ config('results_schema', 'dqa_rox')
 #' set append_to_existing to TRUE if new_site_pp is TRUE
 config('new_site_pp',FALSE)
 config('results_schema_other', NA)
-config('append_to_existing', FALSE)
+#config('append_to_existing', FALSE)
 
 #################################################################
 #
@@ -154,8 +154,8 @@ config('local_name_tag', '_op_1291')
 #' @md
 config('execution_mode', 'development')
 #' current_version should match the most recent db version
-config('current_version','v50')
-config('previous_version','v49')
+config('current_version','v51')
+config('previous_version','v50')
 #' Request-specific debug output for database operations
 #'
 #' This Boolean value specifies whether the query log should include
