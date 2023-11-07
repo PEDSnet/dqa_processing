@@ -458,18 +458,24 @@ apply_dcon_pp <- function(dcon_tbl,
              visits_prop=value_visits/tot_vis)
   }else{
   dcon_overall <- dcon_tbl %>%
-    #group_by(check_type, database_version, check_name, check_desc, cohort, threshold, threshold_operator)%>%
-    group_by(check_type, database_version, check_name, check_desc, cohort) %>%  # threshold, threshold_operator)%>%
+    group_by(check_type, database_version, check_name, check_desc, cohort) %>%
     summarise(value=sum(value,na.rm=TRUE))%>%
     ungroup()%>%
     mutate(site='total')
 
   dcon_tbl_pp<-dcon_tbl %>%
     bind_rows(dcon_overall) %>%
-    group_by(site, check_name, check_type, check_desc) %>%
-    mutate(tot_pats=sum(value, na.rm = TRUE)) %>%
-    ungroup()%>%
-    mutate(yr_prop=value/tot_pats)
+    pivot_wider(values_from = value,
+                names_from=cohort)%>%
+    mutate(tot_pats=cohort_1+cohort_2-combined,
+           cohort_1_only=cohort_1-combined,
+           cohort_2_only=cohort_2-combined)%>%
+    pivot_longer(cols=c(cohort_1_only, cohort_2_only, combined),
+                 names_to="cohort",
+                 values_to="value")%>%
+    mutate(prop=value/tot_pats)%>%
+    select(-c(cohort_1, cohort_2))%>%
+    distinct()
   }
   return(dcon_tbl_pp)
 }
