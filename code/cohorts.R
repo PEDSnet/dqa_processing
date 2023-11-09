@@ -13,7 +13,6 @@
 #' function to add proportions,thresholds, and totals to dc_output
 #'
 #' @param results dc_output results tbl
-#' @param threshold predefined threshold
 #'
 #' @return dc_output tbl with totals and additional change in proportion
 #' and threshold columns
@@ -22,10 +21,11 @@ dc_preprocess <- function(results) {
 
   dc_wider <- results_tbl(results) %>%
     pivot_wider(names_from=database_version,
-                values_from=c(total_ct, total_pt_ct))
+                values_from=c(total_ct, total_pt_ct))%>%
+    collect()
 
-  distinct <- dc_wider %>%
-    distinct(check_name, threshold, threshold_operator)
+  # distinct <- dc_wider %>%
+  #   distinct(check_name, threshold, threshold_operator)
 
   prev_v <- paste0('total_ct_',config('previous_version'))
   current_v <- paste0('total_ct_',config('current_version'))
@@ -34,16 +34,26 @@ dc_preprocess <- function(results) {
   current_v_pt <- paste0('total_pt_ct_',config('current_version'))
 
 
-  dc_totals <- dc_wider %>%
+  dc_totals_person <- dc_wider %>%
+    filter(application=='person')%>%
+    group_by(domain, check_name) %>%
+    summarise({{prev_v_pt}} := sum(.data[[prev_v_pt]]),
+              {{current_v_pt}} := sum(.data[[current_v_pt]])) %>%
+    mutate(site='total', check_type='dc')%>%
+    ungroup()
+
+  dc_totals_rows <- dc_wider %>%
+    filter(application=='rows')%>%
     group_by(domain, check_name) %>%
     summarise({{prev_v}} := sum(.data[[prev_v]]),
-              {{current_v}} := sum(.data[[current_v]]),
-              {{prev_v_pt}} := sum(.data[[prev_v_pt]]),
-              {{current_v_pt}} := sum(.data[[current_v_pt]])) %>%
-    mutate(site='total', check_type='dc') %>%
-    inner_join(distinct, by='check_name')
+              {{current_v}} := sum(.data[[current_v]])) %>%
+    mutate(site='total', check_type='dc')%>%
+    ungroup()
 
-  dc_wider %>% dplyr::union(dc_totals) %>%
+  dc_totals <- dc_totals_person %>%
+    full_join(dc_totals_rows, by = c('site','check_type', 'check_name', 'domain'))
+
+  bind_rows(dc_wider, dc_totals) %>%
     mutate(prop_total_change=
              case_when(!!sym(prev_v) == 0 ~ NA_real_,
                        TRUE ~ round((.data[[current_v]]-.data[[prev_v]])/.data[[prev_v]],2))) %>%
@@ -51,6 +61,7 @@ dc_preprocess <- function(results) {
              case_when(!!sym(prev_v_pt)==0 ~ NA_real_,
                        TRUE ~ round((.data[[current_v_pt]]-.data[[prev_v_pt]])/.data[[prev_v_pt]],2))) %>%
     arrange(site, domain)
+
 
 }
 
@@ -105,7 +116,8 @@ uc_by_year_preprocess <- function(results) {
 mf_visitid_preprocess <- function(results, results_dc, db_version) {
 
   dc_merge <- results_dc %>%
-    filter(database_version == db_version) %>%
+    filter(database_version == db_version,
+           application=='rows')%>%
     select(site, total_ct, domain)
   # compute total row counts for overall data
   dc_total <- dc_merge %>%
@@ -143,7 +155,8 @@ mf_visitid_preprocess <- function(results, results_dc, db_version) {
     left_join(dc_overall, by = c("site", "domain")) %>%
     filter(total_ct!=0)%>%
     mutate(prop_total_visits = round(total_visits/total_ct, 2),
-           prop_missing_visits_total = round(missing_visits_total/total_ct,2))
+           prop_missing_visits_total = round(missing_visits_total/total_ct,2))%>%
+    distinct()
 
 }
 
@@ -156,8 +169,7 @@ mf_visitid_preprocess <- function(results, results_dc, db_version) {
 
 pf_output_preprocess <- function(results) {
 
-  thresh <- results_tbl(results) %>%
-    distinct(check_name,threshold,threshold_operator)
+  rslt_collect<-results_tbl(results)%>%collect()
 
   db_version<-config('current_version')
 
@@ -177,12 +189,17 @@ pf_output_preprocess <- function(results) {
            no_fact_pts_prop=round(no_fact_pts/total_pts,2),
            fact_visits_prop=1-no_fact_visits_prop,
            fact_pts_prop=1-no_fact_pts_prop) %>%
-    left_join(thresh, by='check_name', copy=TRUE)
+    collect()
 
-   results_tbl(results) %>%
-     dplyr::union(pf_totals,copy=TRUE) #%>% do we really need to arrange here? getting error for not grouping
-    # group_by(site, check_description)%>%
-    # arrange(site, check_description)
+  # have to collect to bind rows since total columns may be missing site-specific things (e.g. thresholds)
+   bind_rows(rslt_collect,pf_totals)%>%
+     mutate(visit_type = case_when(str_detect(check_description, "^ip")~ 'inpatient',
+                                   str_detect(check_description, "^all")~'all',
+                                   str_detect(check_description, "^op")~'outpatient',
+                                   str_detect(check_description, "^ed")~'emergency'),
+            check_description=str_remove(check_description, "^ip_|^all_|^op_|^ed_")) %>%
+     mutate(check_description= case_when(check_description=='all_visits_with_procs_drugs_labs' ~ 'visits_with_procs_drugs_labs',
+                                         TRUE ~ check_description))
 
 }
 
@@ -441,18 +458,24 @@ apply_dcon_pp <- function(dcon_tbl,
              visits_prop=value_visits/tot_vis)
   }else{
   dcon_overall <- dcon_tbl %>%
-    #group_by(check_type, database_version, check_name, check_desc, cohort, threshold, threshold_operator)%>%
-    group_by(check_type, database_version, check_name, check_desc, cohort) %>%  # threshold, threshold_operator)%>%
+    group_by(check_type, database_version, check_name, check_desc, cohort) %>%
     summarise(value=sum(value,na.rm=TRUE))%>%
     ungroup()%>%
     mutate(site='total')
 
   dcon_tbl_pp<-dcon_tbl %>%
     bind_rows(dcon_overall) %>%
-    group_by(site, check_name, check_type, check_desc) %>%
-    mutate(tot_pats=sum(value, na.rm = TRUE)) %>%
-    ungroup()%>%
-    mutate(yr_prop=value/tot_pats)
+    pivot_wider(values_from = value,
+                names_from=cohort)%>%
+    mutate(tot_pats=cohort_1+cohort_2-combined,
+           cohort_1_only=cohort_1-combined,
+           cohort_2_only=cohort_2-combined)%>%
+    pivot_longer(cols=c(cohort_1_only, cohort_2_only, combined),
+                 names_to="cohort",
+                 values_to="value")%>%
+    mutate(prop=value/tot_pats)%>%
+    select(-c(cohort_1, cohort_2))%>%
+    distinct()
   }
   return(dcon_tbl_pp)
 }
@@ -492,7 +515,7 @@ bmc_assign <- function(bmc_output,
 
   bmc_w_best_overall <- bmc_w_best%>%
     group_by(concept, check_type, database_version, check_name, check_desc, check_name_app,
-             check_desc_short, threshold_operator, threshold_version,
+             check_desc_short,
              count_best, include, include_new)%>%
     summarise(concept_rows=sum(concept_rows),
               concept_pts=sum(concept_pts)) %>%
@@ -500,8 +523,7 @@ bmc_assign <- function(bmc_output,
     inner_join(site_row_counts, by = 'check_name')%>%
     mutate(site='total',
            row_proportions=concept_rows/total_rows,
-           person_proportions=concept_pts/total_pts,
-           threshold=NA_real_)# may want to change in the future, but this is to get around join problems when different sites have different thresholds
+           person_proportions=concept_pts/total_pts)
 
   bind_rows(bmc_w_best, bmc_w_best_overall)
 

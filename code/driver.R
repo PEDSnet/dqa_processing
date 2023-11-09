@@ -111,7 +111,7 @@ suppressPackageStartupMessages(library(methods))
   if(config('new_site_pp')) {
 
     thresholds_tbls <- create_thresholds_full(schema_name_input=config('results_schema_other'),
-                                         append_tbl=config('append_to_existing'),
+                                         append_tbl=TRUE,#config('append_to_existing'),
                                          db=config('db_src'))
 
     dq_names <- pull_dqa_table_names(schema_name = config('results_schema_other'))
@@ -192,7 +192,7 @@ suppressPackageStartupMessages(library(methods))
               temporary = FALSE)
 
   message('Person facts processing')
-  rslt$pf_output_preprocess <- pf_output_preprocess(results='pf_output_thrshld')
+  rslt$pf_output_preprocess <- pf_output_preprocess(results='pf_output')
   copy_to_new(df=rslt$pf_output_preprocess,
               name='pf_output_pp',
               temporary = FALSE)

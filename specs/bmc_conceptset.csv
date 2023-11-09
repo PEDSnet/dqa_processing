@@ -1,4 +1,4 @@
-﻿check_name,concept,include
+check_name,concept,include
 bmc_csvo_spec,Clinical Biochemical Genetics,
 bmc_csvo_spec,Neurology,
 bmc_csvo_spec,Unknown Physician Specialty,0
@@ -642,3 +642,20 @@ bmc_vo_spec,"Allopathic & Osteopathic Physicians, Anesthesiology",
 bmc_vo_spec,Family Practice,
 bmc_vo_spec,Obesity (Bariatric) Medicine,
 bmc_vo_spec,Neuropsychiatry,
+bmc_adt_service,Critical Care,
+bmc_adt_service,Intermediate care,
+bmc_adt_service,Acute care,
+bmc_adt_service,Observation care,
+bmc_adt_service,"Surgical site (includes OR, ASC)",
+bmc_adt_service,Procedural service,
+bmc_adt_service,Behavioral health,
+bmc_adt_service,"Rehabilitative service (includes PT, OT, ST)",
+bmc_adt_service,Specialty service,
+bmc_adt_service,Radiology,
+bmc_adt_service,Hospital Outpatient,
+bmc_adt_service,PICU,
+bmc_adt_service,CICU,
+bmc_adt_service,NICU,
+bmc_adt_service,Unknown,0
+bmc_adt_service,Other,0
+bmc_adt_service,No Information,0
