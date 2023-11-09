@@ -107,9 +107,6 @@ vc,vc_im_dose,0.3,gt,rows
 vs,vs_ob_cid,0.4,gt,rows
 vc,vc_co_cscid,0,gt,rows
 vc,vc_co_cid,0,gt,rows
-dcon_pts,dcon_pts_ckd-dx_htn-rx,0.2,lt,concordance
-dcon_visits,dcon_ed_visits_conds,0.85,lt,concordance
-dcon_visits,dcon_ip_visits_conds,0.9,lt,concordance
 dc,dc_pd,0.1,gt,person
 dc,dc_dr,0.15,gt,person
 dc,dc_co,0.15,gt,person
@@ -146,3 +143,6 @@ dc,dc_co_ml_covid,0.3,gt,person
 dc,dc_cs,0.2,gt,person
 dc,dc_pv,0.2,gt,person
 dc,dc_sp,0.2,gt,person
+vs,vs_pd_race_cid,0,gt,rows
+vs,vs_adt_cid,0.05,gt,rows
+vs,vs_pd_eth_cid,0,gt,rows
