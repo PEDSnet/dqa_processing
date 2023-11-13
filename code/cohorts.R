@@ -487,7 +487,7 @@ apply_dcon_pp <- function(dcon_tbl,
 #'                      concept: concept to match values in bmc_output
 #'                      include: 0 if check should count up the "best" as any concept NOT assigned a 0 or 1 if check should count up the "best" as any concept that IS assigned a 1
 #' @return table with column `include_new` to indicate whether concept should be counted as a "best" concept for the given check_name
-bmc_assign <- function(bmc_output,
+bmc_assign_old <- function(bmc_output,
                        conceptset=load_codeset('bmc_conceptset', col_types='cci', indexes=list('check_name'))){
   # if check_name+include indicates ones that should not be counted as "best", assign count_best=0
   # if check_name+include indicates ones that should be counted as "best", assign count_best=1
@@ -514,7 +514,7 @@ bmc_assign <- function(bmc_output,
     ungroup()
 
   bmc_w_best_overall <- bmc_w_best%>%
-    group_by(concept, check_type, database_version, check_name, check_desc, check_name_app,
+    group_by(concept, check_type, database_version, check_name, check_desc, #check_name_app,
              check_desc_short,
              count_best, include, include_new)%>%
     summarise(concept_rows=sum(concept_rows),
@@ -529,10 +529,32 @@ bmc_assign <- function(bmc_output,
 
 }
 
+bmc_assign <- function(bmc_output,
+                           conceptset=load_codeset('bmc_conceptset', col_types='cci', indexes=list('check_name'))){
+  # if check_name+include indicates ones that should not be counted as "best", assign count_best=0
+  # if check_name+include indicates ones that should be counted as "best", assign count_best=1
+  best_designation <- conceptset %>%
+    filter(!is.na(include))%>%
+    select(check_name, include)%>%
+    distinct()%>%
+    rename(count_best=include) # probably can remove this in the future if the concept set only has ones we want to count/not count
+
+  bmc_w_best <- bmc_output %>%
+    inner_join(best_designation, by = 'check_name')%>%
+    left_join(conceptset, by=c('check_name', 'concept')) %>%
+    mutate(include_new=case_when(is.na(include)&count_best==0L~1L, # insert opposite of what's already there for the ones that weren't in the set as either "best" or "not best"
+                                 is.na(include)&count_best==1L~0L,
+                                 !is.na(include)~include)) %>%
+    collect()
+
+  return(bmc_w_best)
+
+}
+
 #' Function to compute proportion of "best" based on output from bmc check
 #' @param bmc_output_pp table output from the bmc_assign function, which has all the columns output from the bmc check + an indicator column for whether the concept should be in the "best" category
 #' @return table with the cols: site, check_type, database_version, check_name, check_desc, check_desc_short, count_best, include, total_rows, total_pts, best_row_prop, best_pts_prop
-bmc_rollup <- function(bmc_output_pp){
+bmc_rollup_old <- function(bmc_output_pp){
   bmc_output_pp %>%
     group_by(across(c(site, check_type, database_version, starts_with("check_name"), check_desc, check_desc_short, count_best, include_new, total_rows, total_pts, starts_with("threshold"))))%>%
     summarise(best_rows=sum(concept_rows),
@@ -540,6 +562,49 @@ bmc_rollup <- function(bmc_output_pp){
     ungroup()%>%
     mutate(best_row_prop=best_rows/total_rows,
            best_pts_prop=best_pts/total_pts) # if we just want to look at the ones that are ranked as best, limit to where include_new=1
+
+}
+
+#' Function to compute proportion of "best" based on output from bmc check
+#' @param bmc_output_pp table output from the bmc_assign function, which has all the columns output from the bmc check + an indicator column for whether the concept should be in the "best" category
+#' @return table with the cols: site, check_type, database_version, check_name, check_desc, check_desc_short, count_best, include, total_rows, total_pts, best_row_prop, best_pts_prop
+bmc_rollup <- function(bmc_output_pp,
+                           check_domains=read_codeset('check_domains', col_types='ccccc')){
+  # find proportions of best mapped for each site
+  bmc_sites <- bmc_output_pp %>%
+    #filter(include_new==1L)%>%
+    group_by(across(c(site, include_new, check_type, database_version, starts_with("check_name"), check_desc, check_desc_short, total_rows, starts_with("threshold"))))%>%
+    summarise(best_rows=sum(concept_rows)) %>%
+    ungroup()%>%
+    mutate(best_row_prop=best_rows/total_rows)
+
+  # add up site counts to get overall proportions
+  bmc_overall <- bmc_sites %>%
+    filter(include_new==1L)%>%
+    group_by(check_type, database_version, check_name, check_desc, check_desc_short)%>%
+    summarise(best_rows=sum(best_rows),
+              total_rows=sum(total_rows))%>%
+    ungroup()%>%
+    mutate(best_row_prop=best_rows/total_rows,
+           site='total')
+
+  # finding instances where no best mapped rows in a table
+  sites <- bmc_sites %>% distinct(site)
+  check_domains <- bmc_sites %>% distinct(check_type, check_name, check_desc, check_desc_short)
+  sites_and_checks <- sites %>% cross_join(check_domains)
+
+  site_no_bmc <- sites_and_checks%>%
+    anti_join(bmc_sites, by = c('site', 'check_name'))%>%
+    mutate(best_rows=0,
+           best_row_prop=0,
+           database_version=config('current_version'),
+           include_new=1L)
+
+
+  bind_rows(bmc_sites, bmc_overall)%>%
+    bind_rows(., site_no_bmc)%>%
+    mutate(check_name_app=paste0(check_name, "_rows"))
+
 
 }
 

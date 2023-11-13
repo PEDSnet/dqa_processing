@@ -90,23 +90,33 @@ suppressPackageStartupMessages(library(methods))
 
   rslt <- list()
 
-  thresholds <- load_codeset('threshold_limits','ccdc',
+  message('Determining thresholds')
+  thresholds <- load_codeset('threshold_limits_test','ccdcc',
                              indexes=list('check_name'))
-  copy_to_new(df=thresholds,
-              name='thresholds_pedsnet_standard',
-              temporary=FALSE)
+  # copy_to_new(df=thresholds,
+  #             name='thresholds_pedsnet_standard',
+  #             temporary=FALSE)
 
+  message('Finding previous thresholds')
   redcap_prev <- .qual_tbl(name='dqa_issues_redcap_op_1510',
                            schema='dqa_rox',
                            db=config('db_src_prev'))
+  thresholds_prev <- .qual_tbl(name='thresholds_op_1510',
+                               schema='dqa_rox',
+                               db=config('db_src_prev'))
+
+  message('Assigning thresholds for current cycle')
   thresholds_this_version <-
     compute_new_thresholds(redcap_tbl=redcap_prev,
-                           previous_thresholds=results_tbl_other('thresholds'))
+                           previous_thresholds=thresholds_prev,
+                           threshold_tbl=thresholds)
 
 
   copy_to_new(df=thresholds_this_version,
              name='thresholds',
              temporary = FALSE)
+
+  # -- in new version, skip this part --
 
   if(config('new_site_pp')) {
 
@@ -164,7 +174,7 @@ suppressPackageStartupMessages(library(methods))
   #  output_list_to_db(thresholds_attached,
   #                    append=FALSE)
 
-
+  ## -- and come back here --
   message('Changes between data cycles processing')
   rslt$dc_preprocess <- dc_preprocess(results='dc_output')
   copy_to_new(df=rslt$dc_preprocess,
@@ -213,6 +223,7 @@ suppressPackageStartupMessages(library(methods))
              indexes=list('check_name'))
 
   message('Best mapped concepts processing')
+  # NOTE: test this part
   # sending the set of best/not best mapped concepts to the schema
   rslt$bmc_conceptset<-load_codeset('bmc_conceptset', col_types='cci', indexes=list('check_name')) %>%
     inner_join(select(results_tbl('bmc_gen_output'), check_name, check_desc)%>%distinct(),
@@ -221,11 +232,14 @@ suppressPackageStartupMessages(library(methods))
               name='bmc_conceptset',
               temporary = FALSE)
   # row-level assignment
-  rslt$bmc_concepts <- bmc_assign(bmc_output=results_tbl('bmc_gen_output'))
+  #rslt$bmc_concepts <- bmc_assign_old(bmc_output=results_tbl('bmc_gen_output'))
+  rslt$bmc_concepts <-bmc_assign_new(bmc_output=results_tbl('bmc_gen_outputthrshldno'), #-> will want to change to just the output table
+                                     conceptset=load_codeset('bmc_conceptset', col_types='cci', indexes=list('check_name')))
 
   output_tbl(rslt$bmc_concepts,
                 name='bmc_gen_output_concepts_pp')
   # computing proportions of best mapped per site/check
+  #rslt$bmc_pp <- bmc_rollup_old(rslt$bmc_concepts)
   rslt$bmc_pp <- bmc_rollup(rslt$bmc_concepts)
   output_tbl(rslt$bmc_pp,
               name='bmc_gen_output_pp')
@@ -245,6 +259,18 @@ suppressPackageStartupMessages(library(methods))
 
 
   message('Create threshold table')
+  # NEW!
+  # change this to check_apps when all of the tables have been added
+  # need to test whether violations are flagged appropriately based on col_name when thresholds are NOT in the pp tables
+  rslt$thresholds_applied <- apply_thresholds(check_app_tbl=read_codeset('check_apps_new_limited', col_types = 'cccccc'),
+                                              threshold_tbl = results_tbl('thresholds'))
+  output_list_to_db(rslt$thresholds_applied,
+                    append=FALSE)
+  rslt$threshold_violations <- reduce(.x=rslt$thresholds_applied,
+                                      .f=dplyr::bind_rows)%>%
+    filter(violation)
+
+  # remove this part----
   threshold_list <- create_threshold_tbl_post()
   rslt$threshold_list <- reduce(.x=threshold_list,
                                 .f=dplyr::union) %>%
@@ -253,6 +279,7 @@ suppressPackageStartupMessages(library(methods))
              check_name,check_name_app,version) %>%
     summarise(value_output=sum(value_output)) %>%
     ungroup()
+
 
 
   output_tbl(rslt$threshold_list,

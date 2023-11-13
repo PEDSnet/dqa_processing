@@ -192,19 +192,16 @@ set_broad_thresholds <- function(check_tbl,
 
 compute_new_thresholds <- function(redcap_tbl,
                                    previous_thresholds,
-                                   threshold_tbl=read_codeset('threshold_limits','ccdc'),
+                                   threshold_tbl=read_codeset('threshold_limits','ccdcc'),
                                    site_name_tbl=read_codeset('site_names',col_types = 'c')) {
-
-  # all_sites <-
-  #   site_name_tbl %>% copy_to_new(df=.)
 
   thresholds_sites <-
     merge(threshold_tbl,site_name_tbl) %>% tibble::as_tibble(.) %>%
-    unite('check_name_app',c(check_name,application),
-          sep='_',remove=FALSE)
+     unite('check_name_app',c(check_name,application),
+           sep='_',remove=FALSE)
 
-  thresholds_sites_db <-
-   copy_to_new(df=thresholds_sites)
+  # thresholds_sites_db <-
+  #  copy_to_new(df=thresholds_sites)
 
   version_num <- config('previous_version')
   version_num_current <- config('current_version')
@@ -221,7 +218,8 @@ compute_new_thresholds <- function(redcap_tbl,
            threshold_version)
 
   thresholds_previous_merged <-
-    thresholds_sites_db %>%
+ #   thresholds_sites_db %>%
+    thresholds_sites %>%
     left_join(
       thresholds_previous,
       copy=TRUE
@@ -250,7 +248,7 @@ compute_new_thresholds <- function(redcap_tbl,
     rename(oldthreshold=threshold)
 
   new_thresholds <-
-    thresholds_sites_merged %>%
+    thresholds_previous_merged %>%
     left_join(
       redcap_new,
       by=c('site','check_name','check_name_app'),
@@ -264,7 +262,9 @@ compute_new_thresholds <- function(redcap_tbl,
                        TRUE ~ threshold_version_global)) %>%
     mutate(newthreshold=
              case_when(is.na(newthreshold) ~ oldthreshold,
-                       TRUE ~ newthreshold))
+                       TRUE ~ newthreshold)) %>%
+    # PROBABLY REMOVE THIS, but for now trying to just have one row per threshold (up to here there could be more than one newthreshold from the previous redcap)
+    group_by(site, check_name_app)%>%filter(newthreshold==max(newthreshold))%>%ungroup()%>%distinct()
 
 }
 
@@ -437,7 +437,8 @@ pull_dqa_table_names_post <- function(schema_name=config('results_schema')) {
                                     append_tbl,
                                     threshold_input=results_tbl('thresholds'),
                                     #thresholds=results_tbl('thresholds'),
-                                    db_input=config('db_src')) {
+                                    db_input=config('db_src'),
+                                    threshold_apps=read_codeset('check_apps', col_types = 'cccc')) {
 
 
    otpt <- list()
@@ -455,3 +456,62 @@ pull_dqa_table_names_post <- function(schema_name=config('results_schema')) {
 
  }
 
+ #' Function to apply thresholds to a list of post-processed tables
+ #' @param check_app_tbl table with (at least) the columns:
+ #'                        tbl_name_post: name of post-processed table as it exists in the results schema. This table should contain a `check_name_app` column by which it will be joined to the thresholds
+ #'                        col_filter: name of column to filter thresholding on (can be NULL)
+ #'                        col_filter_value: value in the `col_filter` field on which to filter results
+ #' @param threshold_tbl table with (at least) the columns:
+ #'                        site
+ #'                        check_name_app
+ #'                        threshold
+ #'                        threshold_operator
+ #' @return named list (where names are the names of the post-processed tables) containing the post-processed tables with the thresholds attached
+ apply_thresholds <- function(check_app_tbl,
+                              threshold_tbl){
+   threshold_tbl_limited <- threshold_tbl %>%
+     select(site, check_name, check_name_app, threshold, threshold_operator, threshold_version)
+
+   tbls_to_apply<-check_app_tbl %>%
+     select(tbl_name_post) %>%
+     pull()
+
+   tbls_all <- list()
+
+   for(i in 1:length(tbls_to_apply)) {
+
+     string_name<-tbls_to_apply[i]
+     app_name<-check_app_tbl$check_app[i]
+     # find the output pp table
+     if(config('new_site_pp')) {
+       tbl_dq_pre <-
+         results_tbl_other(string_name)
+     }else{
+       tbl_dq_pre <- results_tbl(string_name)
+     }
+
+     # apply filter if specified
+     if(!is.na(check_app_tbl$col_filter[i])){
+       filt_col<-check_app_tbl$col_filter[i]
+       filt_string<-check_app_tbl$col_filter_value[i]
+       tbl_dq_pre<-tbl_dq_pre%>%filter(as.character(!!sym(filt_col))==filt_string)
+       # select(-!!sym(filt_col)) # could keep this in and it works, but not sure if needed
+     }else{tbl_dq_pre<-tbl_dq_pre}
+
+     # join final table to the thresholds
+     tbl_dq <- tbl_dq_pre %>%
+       left_join(threshold_tbl_limited, by = c('site', 'check_name_app', 'check_name'), copy=TRUE)%>%
+       rename(value_output=!!sym(col_name[i]))%>%
+       mutate(violation=case_when(threshold_operator=='gt'&
+                                    value_output>threshold~TRUE,
+                                  threshold_operator=='lt'&
+                                    value_output<threshold~TRUE,
+                                          TRUE~FALSE))%>%
+       select(site, threshold, threshold_operator, check_name, check_name_app, threshold_version, value_output)%>%
+       collect()
+
+
+     tbls_all[[paste0("thr_",string_name,"_",app_name)]] <- tbl_dq
+   }
+   tbls_all
+ }
