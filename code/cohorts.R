@@ -34,34 +34,43 @@ dc_preprocess <- function(results) {
   current_v_pt <- paste0('total_pt_ct_',config('current_version'))
 
 
-  dc_totals_person <- dc_wider %>%
-    filter(application=='person')%>%
-    group_by(domain, check_name) %>%
-    summarise({{prev_v_pt}} := sum(.data[[prev_v_pt]]),
-              {{current_v_pt}} := sum(.data[[current_v_pt]])) %>%
-    mutate(site='total', check_type='dc')%>%
-    ungroup()
+   dc_totals_person <- dc_wider %>%
+#     filter(application=='person')%>%
+     group_by(domain, check_name, check_type) %>%
+     summarise({{prev_v}} := sum(.data[[prev_v_pt]]),
+               {{current_v}} := sum(.data[[current_v_pt]])) %>%
+     mutate(site='total', application='person')%>%
+     ungroup()
 
-  dc_totals_rows <- dc_wider %>%
-    filter(application=='rows')%>%
-    group_by(domain, check_name) %>%
-    summarise({{prev_v}} := sum(.data[[prev_v]]),
-              {{current_v}} := sum(.data[[current_v]])) %>%
-    mutate(site='total', check_type='dc')%>%
-    ungroup()
+   dc_totals_rows <- dc_wider %>%
+  #   filter(application=='rows')%>%
+     group_by(domain, check_name, check_type) %>%
+     summarise({{prev_v}} := sum(.data[[prev_v]]),
+               {{current_v}} := sum(.data[[current_v]])) %>%
+     mutate(site='total', application='rows')%>%
+     ungroup()
 
-  dc_totals <- dc_totals_person %>%
-    full_join(dc_totals_rows, by = c('site','check_type', 'check_name', 'domain'))
+ # dc_totals <- dc_totals_person %>%
+ #   full_join(dc_totals_rows, by = c('site','check_type', 'check_name', 'domain'))
 
-  bind_rows(dc_wider, dc_totals) %>%
+   dc_site_pats <- dc_wider %>% select(-c({{prev_v}}, {{current_v}})) %>%
+     rename({{prev_v}}:=all_of(prev_v_pt),
+            {{current_v}}:=all_of(current_v_pt))%>%
+     mutate(application='person')
+
+   dc_site_rows <- dc_wider %>% select(-c({{prev_v_pt}}, {{current_v_pt}})) %>%
+     mutate(application='rows')
+
+  bind_rows(dc_totals_person, dc_totals_rows) %>%
+    bind_rows(., dc_site_pats) %>%
+    bind_rows(., dc_site_rows) %>%
     mutate(prop_total_change=
              case_when(!!sym(prev_v) == 0 ~ NA_real_,
                        TRUE ~ round((.data[[current_v]]-.data[[prev_v]])/.data[[prev_v]],2))) %>%
-    mutate(prop_total_pt_change=
-             case_when(!!sym(prev_v_pt)==0 ~ NA_real_,
-                       TRUE ~ round((.data[[current_v_pt]]-.data[[prev_v_pt]])/.data[[prev_v_pt]],2))) %>%
-    arrange(site, domain)
-
+    # mutate(prop_total_pt_change=
+    #          case_when(!!sym(prev_v_pt)==0 ~ NA_real_,
+    #                    TRUE ~ round((.data[[current_v_pt]]-.data[[prev_v_pt]])/.data[[prev_v_pt]],2))) %>%
+    mutate(check_name_app=paste0(check_name, "_", application))
 
 }
 
@@ -74,8 +83,8 @@ dc_preprocess <- function(results) {
 
 vc_vs_violations_preprocess <- function(results) {
 
-  distinct <- results_tbl(results) %>%
-    distinct(check_name, threshold, threshold_operator)
+  # distinct <- results_tbl(results) %>%
+  #   distinct(check_name, threshold, threshold_operator)
 
 
   c<-results_tbl(results) %>%
@@ -84,7 +93,8 @@ vc_vs_violations_preprocess <- function(results) {
     group_by(site, table_application, vocabulary_id, check_type, check_name) %>%
     summarise(tot_ct = sum(total_viol_ct),
               tot_prop = sum(prop_total_viol)) %>%
-    inner_join(distinct)
+    # inner_join(distinct)
+    mutate(check_name_app=paste0(check_name,"_rows"))
 
 }
 
@@ -100,6 +110,14 @@ uc_by_year_preprocess <- function(results) {
 
   results_tbl(results) %>%
     mutate(prop_total=total_unmapped_row_ct/total_row_ct)
+}
+
+#' Function to add post-processed columns to the unmapped concepts dqa_library output
+#' @param results name of output table for the uc output from dqa_library
+#' @return table with additional columns/etc needed for pp output
+uc_process <- function(results){
+  results_tbl(results)%>%
+    mutate(check_name_app=paste0(check_name,"_rows"))
 }
 
 
@@ -156,7 +174,8 @@ mf_visitid_preprocess <- function(results, results_dc, db_version) {
     filter(total_ct!=0)%>%
     mutate(prop_total_visits = round(total_visits/total_ct, 2),
            prop_missing_visits_total = round(missing_visits_total/total_ct,2))%>%
-    distinct()
+   # distinct()%>%
+    mutate(check_name_app=paste0(check_name, "rows"))
 
 }
 
@@ -199,7 +218,8 @@ pf_output_preprocess <- function(results) {
                                    str_detect(check_description, "^ed")~'emergency'),
             check_description=str_remove(check_description, "^ip_|^all_|^op_|^ed_")) %>%
      mutate(check_description= case_when(check_description=='all_visits_with_procs_drugs_labs' ~ 'visits_with_procs_drugs_labs',
-                                         TRUE ~ check_description))
+                                         TRUE ~ check_description))%>%
+     mutate(check_name_app=paste0(check_name, "visits"))
 
 }
 

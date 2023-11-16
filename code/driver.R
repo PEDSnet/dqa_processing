@@ -176,25 +176,39 @@ suppressPackageStartupMessages(library(methods))
 
   ## -- and come back here --
   message('Changes between data cycles processing')
-  rslt$dc_preprocess <- dc_preprocess(results='dc_output')
+  #rslt$dc_preprocess <- dc_preprocess(results='dc_output')
+  # change this to dc_output for running on dqa_library output without thresholds attached
+  rslt$dc_preprocess <- dc_preprocess(results='dc_outputthrshldno')
+
   copy_to_new(df=rslt$dc_preprocess,
               name='dc_output_pp',
               temporary = FALSE)
 
   message('Value set and vocabulary violations processing')
-  rslt$vc_vs_violations_preprocess <- vc_vs_violations_preprocess(results='vc_vs_violations')
+  #rslt$vc_vs_violations_preprocess <- vc_vs_violations_preprocess(results='vc_vs_violations')
+  rslt$vc_vs_violations_preprocess <- vc_vs_violations_preprocess(results='vc_vs_violationsthrshldno')
+
   copy_to_new(df=rslt$vc_vs_violations_preprocess,
               name='vc_vs_violations_pp',
               temporary = FALSE)
 
-  message('Unmapped concepts by year processing')
+  message('Unmapped concepts processing')
+  # note: this part is new and check_name_app is the only thing added
+  rslt$uc_preprocess <- uc_process(results='uc_outputthrshldno')
+  copy_to_new(df=rslt$uc_by_year_preprocess,
+              name='uc_output_pp',
+              temporary = FALSE)
+
   rslt$uc_by_year_preprocess <- uc_by_year_preprocess(results='uc_by_year')
   copy_to_new(df=rslt$uc_by_year_preprocess,
               name='uc_by_year_pp',
               temporary = FALSE)
 
   message('Missing field: visit id processing')
-  rslt$mf_visitid_preprocess <- mf_visitid_preprocess(results='mf_visitid_output',
+  # rslt$mf_visitid_preprocess <- mf_visitid_preprocess(results='mf_visitid_output',
+  #                                                     results_dc=results_tbl('dc_output'),
+  #                                                     db_version=config('current_version'))
+  rslt$mf_visitid_preprocess <- mf_visitid_preprocess(results='mf_visitid_outputthrshldno',
                                                       results_dc=results_tbl('dc_output'),
                                                       db_version=config('current_version'))
   copy_to_new(df=rslt$mf_visitid_preprocess,
