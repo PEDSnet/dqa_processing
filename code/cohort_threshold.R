@@ -484,30 +484,30 @@ pull_dqa_table_names_post <- function(schema_name=config('results_schema')) {
      app_name<-check_app_tbl$check_app[i]
      # find the output pp table
      if(config('new_site_pp')) {
-       tbl_dq_pre <-
+       tbl_dq_post <-
          results_tbl_other(string_name)
      }else{
-       tbl_dq_pre <- results_tbl(string_name)
+       tbl_dq_post <- results_tbl(string_name)
      }
 
      # apply filter if specified
      if(!is.na(check_app_tbl$col_filter[i])){
        filt_col<-check_app_tbl$col_filter[i]
        filt_string<-check_app_tbl$col_filter_value[i]
-       tbl_dq_pre<-tbl_dq_pre%>%filter(as.character(!!sym(filt_col))==filt_string)
+       tbl_dq_post<-tbl_dq_post%>%filter(as.character(!!sym(filt_col))==filt_string)
        # select(-!!sym(filt_col)) # could keep this in and it works, but not sure if needed
-     }else{tbl_dq_pre<-tbl_dq_pre}
+     }else{tbl_dq_post<-tbl_dq_post}
 
      # join final table to the thresholds
-     tbl_dq <- tbl_dq_pre %>%
+     tbl_dq <- tbl_dq_post %>%
        left_join(threshold_tbl_limited, by = c('site', 'check_name_app', 'check_name'), copy=TRUE)%>%
-       rename(value_output=!!sym(col_name[i]))%>%
+       rename(value_output:=!!sym(check_app_tbl$col_name[i]))%>%
        mutate(violation=case_when(threshold_operator=='gt'&
                                     value_output>threshold~TRUE,
                                   threshold_operator=='lt'&
                                     value_output<threshold~TRUE,
                                           TRUE~FALSE))%>%
-       select(site, threshold, threshold_operator, check_name, check_name_app, threshold_version, value_output)%>%
+       select(site, threshold, threshold_operator, check_name, check_name_app, threshold_version, value_output, violation)%>%
        collect()
 
 

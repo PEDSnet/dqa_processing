@@ -91,11 +91,11 @@ suppressPackageStartupMessages(library(methods))
   rslt <- list()
 
   message('Determining thresholds')
-  thresholds <- load_codeset('threshold_limits_test','ccdcc',
+  thresholds <- load_codeset('threshold_limits','ccdcc',
                              indexes=list('check_name'))
-  # copy_to_new(df=thresholds,
-  #             name='thresholds_pedsnet_standard',
-  #             temporary=FALSE)
+  copy_to_new(df=thresholds,
+              name='thresholds_pedsnet_standard',
+              temporary=FALSE)
 
   message('Finding previous thresholds')
   redcap_prev <- .qual_tbl(name='dqa_issues_redcap_op_1510',
@@ -178,24 +178,28 @@ suppressPackageStartupMessages(library(methods))
   message('Changes between data cycles processing')
   #rslt$dc_preprocess <- dc_preprocess(results='dc_output')
   # change this to dc_output for running on dqa_library output without thresholds attached
-  rslt$dc_preprocess <- dc_preprocess(results='dc_outputthrshldno')
+  rslt$dc_preprocess <- dc_preprocess(results='dc_output')
 
   copy_to_new(df=rslt$dc_preprocess,
               name='dc_output_pp',
               temporary = FALSE)
 
   message('Value set and vocabulary violations processing')
-  #rslt$vc_vs_violations_preprocess <- vc_vs_violations_preprocess(results='vc_vs_violations')
-  rslt$vc_vs_violations_preprocess <- vc_vs_violations_preprocess(results='vc_vs_violationsthrshldno')
-
+  # by vocabulary_id
+  rslt$vc_vs_violations_preprocess <- vc_vs_violations_preprocess(results='vc_vs_violations')
   copy_to_new(df=rslt$vc_vs_violations_preprocess,
               name='vc_vs_violations_pp',
               temporary = FALSE)
+  # by check_name_app
+  rslt$vc_vs_output_pp <- vc_vs_rollup(pp_output = rslt$vc_vs_violations_preprocess)
+  copy_to_new(df=rslt$vc_vs_output_pp,
+              name='vc_vs_output_pp',
+              temporary=FALSE)
 
   message('Unmapped concepts processing')
   # note: this part is new and check_name_app is the only thing added
-  rslt$uc_preprocess <- uc_process(results='uc_outputthrshldno')
-  copy_to_new(df=rslt$uc_by_year_preprocess,
+  rslt$uc_preprocess <- uc_process(results='uc_output')
+  copy_to_new(df=rslt$uc_preprocess,
               name='uc_output_pp',
               temporary = FALSE)
 
@@ -205,10 +209,7 @@ suppressPackageStartupMessages(library(methods))
               temporary = FALSE)
 
   message('Missing field: visit id processing')
-  # rslt$mf_visitid_preprocess <- mf_visitid_preprocess(results='mf_visitid_output',
-  #                                                     results_dc=results_tbl('dc_output'),
-  #                                                     db_version=config('current_version'))
-  rslt$mf_visitid_preprocess <- mf_visitid_preprocess(results='mf_visitid_outputthrshldno',
+  rslt$mf_visitid_preprocess <- mf_visitid_preprocess(results='mf_visitid_output',
                                                       results_dc=results_tbl('dc_output'),
                                                       db_version=config('current_version'))
   copy_to_new(df=rslt$mf_visitid_preprocess,
@@ -247,7 +248,7 @@ suppressPackageStartupMessages(library(methods))
               temporary = FALSE)
   # row-level assignment
   #rslt$bmc_concepts <- bmc_assign_old(bmc_output=results_tbl('bmc_gen_output'))
-  rslt$bmc_concepts <-bmc_assign_new(bmc_output=results_tbl('bmc_gen_outputthrshldno'), #-> will want to change to just the output table
+  rslt$bmc_concepts <-bmc_assign(bmc_output=results_tbl('bmc_gen_output'),
                                      conceptset=load_codeset('bmc_conceptset', col_types='cci', indexes=list('check_name')))
 
   output_tbl(rslt$bmc_concepts,
@@ -276,13 +277,20 @@ suppressPackageStartupMessages(library(methods))
   # NEW!
   # change this to check_apps when all of the tables have been added
   # need to test whether violations are flagged appropriately based on col_name when thresholds are NOT in the pp tables
-  rslt$thresholds_applied <- apply_thresholds(check_app_tbl=read_codeset('check_apps_new_limited', col_types = 'cccccc'),
+  rslt$thresholds_applied <- apply_thresholds(check_app_tbl=read_codeset('check_apps', col_types = 'cccccc'),
                                               threshold_tbl = results_tbl('thresholds'))
+
+
   output_list_to_db(rslt$thresholds_applied,
                     append=FALSE)
   rslt$threshold_violations <- reduce(.x=rslt$thresholds_applied,
                                       .f=dplyr::bind_rows)%>%
     filter(violation)
+
+  copy_to_new(df=rslt$threshold_violations,
+              name='threshold_tbl_violations',
+              temporary=FALSE)
+
 
   # remove this part----
   threshold_list <- create_threshold_tbl_post()
@@ -314,6 +322,7 @@ suppressPackageStartupMessages(library(methods))
   #   pivot_wider(id_cols=site,
   #               names_from = check_name_app,
   #                values_from = value_output)
+  # Up to here ----
 
   message('Generate and add masked site identifiers to all tables with "site" column')
   rslt$pp_tbl_names <- pull_site_tables()

@@ -83,18 +83,30 @@ dc_preprocess <- function(results) {
 
 vc_vs_violations_preprocess <- function(results) {
 
-  # distinct <- results_tbl(results) %>%
-  #   distinct(check_name, threshold, threshold_operator)
-
-
-  c<-results_tbl(results) %>%
+  results_tbl(results) %>%
     mutate(prop_total_viol=round(total_viol_ct/total_denom_ct,8),
            prop_total_pt_viol=round(total_viol_pt_ct/total_pt_ct,8)) %>%
     group_by(site, table_application, vocabulary_id, check_type, check_name) %>%
     summarise(tot_ct = sum(total_viol_ct),
               tot_prop = sum(prop_total_viol)) %>%
-    # inner_join(distinct)
-    mutate(check_name_app=paste0(check_name,"_rows"))
+    ungroup()
+
+}
+
+#' function to sum total counts by site, and check_name
+#' and calculate proportions
+#'
+#' @param pp_output vs_vc_violations results tbl
+#'
+#' @return vc_vs_violations tbl with summed total counts and proportions per check_name
+
+vc_vs_rollup <- function(pp_output){
+  pp_output %>%
+    group_by(site, table_application, check_type, check_name) %>%
+    summarise(tot_ct=sum(tot_ct),
+              tot_prop=sum(tot_prop))%>%
+    ungroup()%>%
+    mutate(check_name_app=paste0(check_name, "_rows"))
 
 }
 
@@ -134,8 +146,7 @@ uc_process <- function(results){
 mf_visitid_preprocess <- function(results, results_dc, db_version) {
 
   dc_merge <- results_dc %>%
-    filter(database_version == db_version,
-           application=='rows')%>%
+    filter(database_version == db_version)%>%
     select(site, total_ct, domain)
   # compute total row counts for overall data
   dc_total <- dc_merge %>%
@@ -175,7 +186,7 @@ mf_visitid_preprocess <- function(results, results_dc, db_version) {
     mutate(prop_total_visits = round(total_visits/total_ct, 2),
            prop_missing_visits_total = round(missing_visits_total/total_ct,2))%>%
    # distinct()%>%
-    mutate(check_name_app=paste0(check_name, "rows"))
+    mutate(check_name_app=paste0(check_name, "_rows"))
 
 }
 
@@ -219,7 +230,7 @@ pf_output_preprocess <- function(results) {
             check_description=str_remove(check_description, "^ip_|^all_|^op_|^ed_")) %>%
      mutate(check_description= case_when(check_description=='all_visits_with_procs_drugs_labs' ~ 'visits_with_procs_drugs_labs',
                                          TRUE ~ check_description))%>%
-     mutate(check_name_app=paste0(check_name, "visits"))
+     mutate(check_name_app=paste0(check_name, "_visits"))
 
 }
 
@@ -497,7 +508,8 @@ apply_dcon_pp <- function(dcon_tbl,
     select(-c(cohort_1, cohort_2))%>%
     distinct()
   }
-  return(dcon_tbl_pp)
+  return(dcon_tbl_pp%>%
+           mutate(check_name_app=paste0(check_name,"_concordance")))
 }
 
 #' Function to assign a "best" indicator and to add a site='total' count per concept

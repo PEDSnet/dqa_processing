@@ -1,8 +1,9 @@
-﻿tbl_name_pre,tbl_name_post,check_apps_no,check_app_first,check_app_second,check_app_third,first_col,second_col,third_col
-dc_output,dc_output_pp,2,rows,person,,prop_total_change,prop_total_pt_change,
-uc_output,uc_output,1,rows,,,unmapped_prop,,
-vc_vs_violations,vc_vs_violations_pp,1,rows,,,tot_prop,,
-mf_visitid,mf_visitid_pp,1,rows,,,prop_missing_visits_total,,
-pf_output,pf_output_pp,1,visits,,,fact_visits_prop,,
-bmc_gen_output,bmc_gen_output_pp,1,rows,,,best_row_prop,,
-dcon_output,dcon_output_pp,1,concordance,,,prop,,
+﻿tbl_name_pre,tbl_name_post,check_app,col_name,col_filter,col_filter_value
+dc_output,dc_output_pp,rows,prop_total_change,application,rows
+dc_output,dc_output_pp,person,prop_total_change,application,person
+uc_output,uc_output_pp,rows,unmapped_prop,,
+vc_vs_violations,vc_vs_output_pp,rows,tot_prop,,
+mf_visitid_output,mf_visitid_pp,rows,prop_missing_visits_total,,
+pf_output,pf_output_pp,visits,fact_visits_prop,,
+bmc_gen_output,bmc_gen_output_pp,rows,best_row_prop,include_new,1
+dcon_output,dcon_output_pp,concordance,prop,cohort,combined
