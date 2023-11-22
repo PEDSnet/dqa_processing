@@ -86,7 +86,7 @@ vc_vs_violations_preprocess <- function(results) {
   results_tbl(results) %>%
     mutate(prop_total_viol=round(total_viol_ct/total_denom_ct,8),
            prop_total_pt_viol=round(total_viol_pt_ct/total_pt_ct,8)) %>%
-    group_by(site, table_application, vocabulary_id, check_type, check_name) %>%
+    group_by(site, table_application, measurement_column, vocabulary_id, check_type, check_name) %>%
     summarise(tot_ct = sum(total_viol_ct),
               tot_prop = sum(prop_total_viol)) %>%
     ungroup()
@@ -102,7 +102,7 @@ vc_vs_violations_preprocess <- function(results) {
 
 vc_vs_rollup <- function(pp_output){
   pp_output %>%
-    group_by(site, table_application, check_type, check_name) %>%
+    group_by(site, table_application, measurement_column, check_type, check_name) %>%
     summarise(tot_ct=sum(tot_ct),
               tot_prop=sum(tot_prop))%>%
     ungroup()%>%
