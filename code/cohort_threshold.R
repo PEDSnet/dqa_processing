@@ -208,11 +208,14 @@ compute_new_thresholds <- function(redcap_tbl,
 
   thresholds_previous <-
     previous_thresholds %>%
+    select(-c(threshold_previous)) %>% 
     rename(threshold_previous = newthreshold) %>%
     select(check_type,
            check_name_app,
            check_name,
            threshold_previous,
+           ### below is new
+           threshold_version_global,
            application,
            site,
            threshold_version)
@@ -223,15 +226,31 @@ compute_new_thresholds <- function(redcap_tbl,
     left_join(
       thresholds_previous,
       copy=TRUE
-    ) %>%
-    mutate(
-      threshold_version_global = case_when(abs(threshold-threshold_previous) > 0.01 ~ version_num,
-                                           TRUE ~ 'standard'),
-      threshold=case_when(abs(threshold-threshold_previous) > 0.01 ~ threshold_previous,
-                          TRUE ~ threshold)
-    )
+    ) %>% distinct() %>% 
+    mutate(threshold_version_global = 
+             case_when(is.na(threshold_version_global) ~ 'standard',
+                       TRUE ~ threshold_version_global)) %>% 
+    mutate(threshold_version = 
+             case_when(is.na(threshold_version) ~ version_num_current,
+                       TRUE ~ threshold_version),
+           threshold_previous = 
+             case_when(is.na(threshold_previous) ~ threshold,
+                       TRUE ~ threshold_previous))
+  
+  #%>% 
+    # mutate(threshold_version_global = case_when(abs()))
+    # mutate(
+    #   threshold_version_global = case_when(abs(threshold-threshold_previous) > 0.01 ~ version_num,
+    #                                        TRUE ~ threshold_version_global),
+    #                                        #TRUE ~ 'standard'),
+    #   threshold=case_when(abs(threshold-threshold_previous) > 0.01 ~ threshold_previous,
+    #                       TRUE ~ threshold)
+    # )
 
-
+  #' TO DISCUSS WITH KIM: 
+  #' - Should we call `threshold` something else?
+  #' - What to do with the `finalflag` column when the value is `Stop flagging`
+  #' - How to preserve a running copy of thresholds, and redcap responses?
   redcap_new <-
     redcap_tbl %>%
     mutate(newthreshold=
@@ -252,10 +271,10 @@ compute_new_thresholds <- function(redcap_tbl,
     left_join(
       redcap_new,
       by=c('site','check_name','check_name_app'),
-      copy=TRUE
-    ) %>% mutate(threshold_version=version_num) %>%
+      copy=TRUE) %>% 
+   #' NEW:  look to `threshold_previous` rather than just `threshold`
     mutate(oldthreshold=
-             case_when(is.na(oldthreshold) ~ threshold,
+             case_when(is.na(oldthreshold) ~ threshold_previous,
                        TRUE ~ oldthreshold)) %>%
     mutate(threshold_version_global=
              case_when(!is.na(newthreshold) & abs(newthreshold-oldthreshold) > 0.01 ~ version_num_current,
@@ -263,6 +282,7 @@ compute_new_thresholds <- function(redcap_tbl,
     mutate(newthreshold=
              case_when(is.na(newthreshold) ~ oldthreshold,
                        TRUE ~ newthreshold)) %>%
+    mutate(threshold_version = version_num_current) %>% 
     # PROBABLY REMOVE THIS, but for now trying to just have one row per threshold (up to here there could be more than one newthreshold from the previous redcap)
     group_by(site, check_name_app)%>%filter(newthreshold==max(newthreshold))%>%ungroup()%>%distinct()
 

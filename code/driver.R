@@ -98,7 +98,7 @@ suppressPackageStartupMessages(library(methods))
               temporary=FALSE)
 
   message('Finding previous thresholds')
-  redcap_prev <- .qual_tbl(name='dqa_issues_redcap_op_1510',
+  redcap_prev <- .qual_tbl(name='dqa_issues_redcap_ops_125',
                            schema='dqa_rox',
                            db=config('db_src_prev'))
   thresholds_prev <- .qual_tbl(name='thresholds_op_1510',
