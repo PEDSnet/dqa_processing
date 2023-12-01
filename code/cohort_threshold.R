@@ -249,8 +249,18 @@ compute_new_thresholds <- function(redcap_tbl,
 
   #' TO DISCUSS WITH KIM: 
   #' - Should we call `threshold` something else?
-  #' - What to do with the `finalflag` column when the value is `Stop flagging`
+  #'    #### ---- DECISION: 
+  #'                1) Change column name of `threshold` (in current version) to `default_pedsnet_thresholds` (or something similar)
+  #'                2) Only keep one of newthreshold (don't duplicate with `threshold_previous`) so that the only columns 
+  #'                  that we maintain are: 1) default pedsnet thresholds, 2) threshold of previous cycle, 3) new threshold for current data cycle
+  #' - What to do with the `finalflag` column when the value is `Stop flagging` 
+  #'    #### ---- DECISION: 
+  #'              Need to look at previous threshold table as well as redcap table, if we are carrying over from previous data cycles, it will not be in redcap table
+  #'              Change label of `finalflag` to reflect more accurately that it represents a column for permission to flag
   #' - How to preserve a running copy of thresholds, and redcap responses?
+  #'    #### ---- DECISION: 
+  #'              Do a union of the previous thresholds with current and output to database
+  #' 
   redcap_new <-
     redcap_tbl %>%
     mutate(newthreshold=
