@@ -44,7 +44,7 @@ attach_anon_id <- function(all_sites_tbl,
   return(tbls_all)
 }
 
-#' Function to pull all table names with 'site' column
+#' Function to pull all table names with 'site' column for only the post-processed tables
 #' @param db a database connection
 #' @param schema_name a schema name containing the results tables to search
 #'
@@ -61,7 +61,8 @@ pull_site_tables <- function(db=config('db_src'),
     dplyr::pull(table) %>%
     purrr::map(~slot(.x, 'name')) %>%
     dplyr::bind_rows()%>%
-    filter(! str_detect(table,'redcap'))
+    filter(! str_detect(table,'redcap'))%>%
+    filter(str_detect(table, 'pp'))
 
   tbl_names_short <-
     tbl_names %>%

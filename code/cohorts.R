@@ -133,8 +133,7 @@ uc_process <- function(results){
 }
 
 
-#' function to take total_cts from dc_output, merge with mf_visitid, and
-#' add proportions
+#' function to add proportions to mf results
 #'
 #' @param results mf_visitid results tbl
 #' @param results_dc output from the changes between data cycles check from dqa_library
@@ -143,20 +142,20 @@ uc_process <- function(results){
 #' @return mf_visitid tbl with additional domain, total_ct, and proportion
 #' column
 
-mf_visitid_preprocess <- function(results, results_dc, db_version) {
+mf_visitid_preprocess <- function(results) {
 
-  dc_merge <- results_dc %>%
-    filter(database_version == db_version)%>%
-    select(site, total_ct, domain)
-  # compute total row counts for overall data
-  dc_total <- dc_merge %>%
-    group_by(domain)%>%
-    summarise(total_ct=sum(total_ct))%>%
-    ungroup()%>%
-    mutate(site='total')
-
-  dc_overall <- dc_merge %>%
-    dplyr::union_all(dc_total)
+  # dc_merge <- results_dc %>%
+  #   filter(database_version == db_version)%>%
+  #   select(site, total_ct, domain)
+  # # compute total row counts for overall data
+  # dc_total <- dc_merge %>%
+  #   group_by(domain)%>%
+  #   summarise(total_ct=sum(total_ct))%>%
+  #   ungroup()%>%
+  #   mutate(site='total')
+  #
+  # dc_overall <- dc_merge %>%
+  #   dplyr::union_all(dc_total)
 
   test_mf <- results_tbl(results) %>%
     mutate(
@@ -174,14 +173,15 @@ mf_visitid_preprocess <- function(results, results_dc, db_version) {
               missing_visits_total=sum(missing_visits_total),
               missing_visits_distinct=sum(missing_visits_distinct),
               visit_na=sum(visit_na),
-              total_id=sum(total_id)) %>%
+              total_id=sum(total_id),
+              total_ct=sum(total_ct)) %>%
     ungroup()%>%
     mutate(site = 'total')
 
   # compute proportions
   test_mf %>%
     dplyr::union_all(test_mf_overall)%>%
-    left_join(dc_overall, by = c("site", "domain")) %>%
+   # left_join(dc_overall, by = c("site", "domain")) %>%
     filter(total_ct!=0)%>%
     mutate(prop_total_visits = round(total_visits/total_ct, 2),
            prop_missing_visits_total = round(missing_visits_total/total_ct,2))%>%

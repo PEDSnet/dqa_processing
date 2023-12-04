@@ -141,7 +141,7 @@ config('results_schema_other', NA)
 #' more readable result.  Keep the tag short, given Oracle limits on
 #' table name length.
 #' @md
-config('results_name_tag', '_op_1510')
+config('results_name_tag', NA)
 config('local_name_tag', '_op_1291')
 
 #' Execution mode
@@ -154,7 +154,7 @@ config('local_name_tag', '_op_1291')
 #' @md
 config('execution_mode', 'development')
 #' current_version should match the most recent db version
-config('current_version','v52_dev')
+config('current_version','v52')
 config('previous_version','v51')
 #' Request-specific debug output for database operations
 #'

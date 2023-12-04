@@ -98,12 +98,17 @@ suppressPackageStartupMessages(library(methods))
               temporary=FALSE)
 
   message('Finding previous thresholds')
-  redcap_prev <- .qual_tbl(name='dqa_issues_redcap_ops_125',
+  redcap_prev <- .qual_tbl(name='dqa_issues_redcap_op_1510',
+#  redcap_prev <- .qual_tbl(name='dqa_issues_redcap_ops_125',
                            schema='dqa_rox',
                            db=config('db_src_prev'))
   thresholds_prev <- .qual_tbl(name='thresholds_op_1510',
                                schema='dqa_rox',
                                db=config('db_src_prev'))
+  ## This table will exist in schema moving forward, but first introducted to schema in v52
+  # thresholds_history <- .qual_tbl(name='thresholds_history',
+  #                                 schema='dqa_rox',
+  #                                 db=config('db_src_prev'))
 
   message('Assigning thresholds for current cycle')
   thresholds_this_version <-
@@ -115,6 +120,14 @@ suppressPackageStartupMessages(library(methods))
   copy_to_new(df=thresholds_this_version,
              name='thresholds',
              temporary = FALSE)
+
+  message('Creating table to track threshold versions')
+  ## Introduced the first time in v52, but will want to reference previous thresholds moving forward
+  # thresholds_history_new <- bind_rows(thresholds_this_version,
+  #                                     thresholds_history)
+  thresholds_history_new <- thresholds_this_version
+  output_tbl(thresholds_history_new,
+             name='thresholds_history')
 
   # -- in new version, skip this part --
 
@@ -176,9 +189,8 @@ suppressPackageStartupMessages(library(methods))
 
   ## -- and come back here --
   message('Changes between data cycles processing')
-  #rslt$dc_preprocess <- dc_preprocess(results='dc_output')
-  # change this to dc_output for running on dqa_library output without thresholds attached
-  rslt$dc_preprocess <- dc_preprocess(results='dc_output')
+  # in future versions, will want to change to not have suffix
+  rslt$dc_preprocess <- dc_preprocess(results='dc_output_op_1510')
 
   copy_to_new(df=rslt$dc_preprocess,
               name='dc_output_pp',
@@ -186,7 +198,7 @@ suppressPackageStartupMessages(library(methods))
 
   message('Value set and vocabulary violations processing')
   # by vocabulary_id
-  rslt$vc_vs_violations_preprocess <- vc_vs_violations_preprocess(results='vc_vs_violations')
+  rslt$vc_vs_violations_preprocess <- vc_vs_violations_preprocess(results='vc_vs_violations_op_1510')
   copy_to_new(df=rslt$vc_vs_violations_preprocess,
               name='vc_vs_violations_pp',
               temporary = FALSE)
@@ -198,26 +210,24 @@ suppressPackageStartupMessages(library(methods))
 
   message('Unmapped concepts processing')
   # note: this part is new and check_name_app is the only thing added
-  rslt$uc_preprocess <- uc_process(results='uc_output')
+  rslt$uc_preprocess <- uc_process(results='uc_output_op_1510')
   copy_to_new(df=rslt$uc_preprocess,
               name='uc_output_pp',
               temporary = FALSE)
 
-  rslt$uc_by_year_preprocess <- uc_by_year_preprocess(results='uc_by_year')
+  rslt$uc_by_year_preprocess <- uc_by_year_preprocess(results='uc_by_year_op_1510')
   copy_to_new(df=rslt$uc_by_year_preprocess,
               name='uc_by_year_pp',
               temporary = FALSE)
 
   message('Missing field: visit id processing')
-  rslt$mf_visitid_preprocess <- mf_visitid_preprocess(results='mf_visitid_output',
-                                                      results_dc=results_tbl('dc_output'),
-                                                      db_version=config('current_version'))
+  rslt$mf_visitid_preprocess <- mf_visitid_preprocess(results='mf_visitid_output_op_1510')
   copy_to_new(df=rslt$mf_visitid_preprocess,
               name='mf_visitid_pp',
               temporary = FALSE)
 
   message('Person facts processing')
-  rslt$pf_output_preprocess <- pf_output_preprocess(results='pf_output')
+  rslt$pf_output_preprocess <- pf_output_preprocess(results='pf_output_op_1510')
   copy_to_new(df=rslt$pf_output_preprocess,
               name='pf_output_pp',
               temporary = FALSE)
@@ -227,7 +237,7 @@ suppressPackageStartupMessages(library(methods))
   output_tbl(rslt$fot_map,
              'fot_map',
              indexes=list('domain'))
-  rslt$input_tbl <- results_tbl('fot_output') %>% inner_join(results_tbl('fot_map'),by='check_name')
+  rslt$input_tbl <- results_tbl('fot_output_op_1510') %>% inner_join(results_tbl('fot_map'),by='check_name')
 
   fot_list <- fot_check('row_cts',tblx=rslt$input_tbl)
   output_list_to_db(fot_list)
@@ -241,14 +251,14 @@ suppressPackageStartupMessages(library(methods))
   # NOTE: test this part
   # sending the set of best/not best mapped concepts to the schema
   rslt$bmc_conceptset<-load_codeset('bmc_conceptset', col_types='cci', indexes=list('check_name')) %>%
-    inner_join(select(results_tbl('bmc_gen_output'), check_name, check_desc)%>%distinct(),
+    inner_join(select(results_tbl('bmc_gen_output_op_1510'), check_name, check_desc)%>%distinct(),
                       by = 'check_name')
   copy_to_new(df=rslt$bmc_conceptset,
               name='bmc_conceptset',
               temporary = FALSE)
   # row-level assignment
   #rslt$bmc_concepts <- bmc_assign_old(bmc_output=results_tbl('bmc_gen_output'))
-  rslt$bmc_concepts <-bmc_assign(bmc_output=results_tbl('bmc_gen_output'),
+  rslt$bmc_concepts <-bmc_assign(bmc_output=results_tbl('bmc_gen_output_op_1510'),
                                      conceptset=load_codeset('bmc_conceptset', col_types='cci', indexes=list('check_name')))
 
   output_tbl(rslt$bmc_concepts,
@@ -267,10 +277,18 @@ suppressPackageStartupMessages(library(methods))
   #            name='dcon_output_pp_byyr')
 
   # overall
-  rslt$dcon_output_pp <- apply_dcon_pp(dcon_tbl=results_tbl('dcon_output'),
+  rslt$dcon_output_pp <- apply_dcon_pp(dcon_tbl=results_tbl('dcon_output_op_1510'),
                                             byyr=FALSE)
   output_tbl(rslt$dcon_output_pp,
              name='dcon_output_pp')
+
+  message("ECP processing")
+  # NOTE this might just be temporary, just making sure it is accounted for and matches expectations for dashboard
+  rslt$ecp_process <- results_tbl('ecp_output_op_1510') %>%
+    mutate(check_name_app=paste0(check_name, '_person'))
+  copy_to_new(df=rslt$ecp_process,
+              name='ecp_output_pp',
+              temporary=FALSE)
 
 
   message('Create threshold table')
@@ -285,48 +303,15 @@ suppressPackageStartupMessages(library(methods))
                     append=FALSE)
   rslt$threshold_violations <- reduce(.x=rslt$thresholds_applied,
                                       .f=dplyr::bind_rows)%>%
-    filter(violation)
+    filter(violation&!rc_stop_flag)
 
   copy_to_new(df=rslt$threshold_violations,
               name='threshold_tbl_violations',
               temporary=FALSE)
 
-
-  # remove this part----
-  threshold_list <- create_threshold_tbl_post()
-  rslt$threshold_list <- reduce(.x=threshold_list,
-                                .f=dplyr::union) %>%
-    mutate(version=config('current_version')) %>%
-    group_by(site,threshold,threshold_operator,
-             check_name,check_name_app,version) %>%
-    summarise(value_output=sum(value_output)) %>%
-    ungroup()
-
-
-
-  output_tbl(rslt$threshold_list,
-             'threshold_tbl_output')
-
-  rslt$threshold_list_violations <-
-    rslt$threshold_list %>%
-    mutate(violation=case_when(threshold_operator == 'gt' & value_output > threshold ~ 1,
-                               threshold_operator == 'lt' & value_output < threshold ~ 1,
-                               TRUE ~ 0)) %>% filter(violation==1)
-
-  output_tbl(rslt$threshold_list_violations,
-             'threshold_tbl_violations')
-
-  # rslt$threshold_list_wide <-
-  #   rslt$threshold_list %>%
-  #   #select(check_name_app,value_output) %>%
-  #   pivot_wider(id_cols=site,
-  #               names_from = check_name_app,
-  #                values_from = value_output)
-  # Up to here ----
-
   message('Generate and add masked site identifiers to all tables with "site" column')
   rslt$pp_tbl_names <- pull_site_tables()
-  rslt$tbls_anon <- attach_anon_id(all_sites_tbl=results_tbl('dc_output'),
+  rslt$tbls_anon <- attach_anon_id(all_sites_tbl=results_tbl('dc_output_op_1510'),
                                    tbls_to_anon=rslt$pp_tbl_names)
   output_list_to_db_collect(rslt$tbls_anon,
                             append=FALSE)
