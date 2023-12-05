@@ -131,61 +131,46 @@ suppressPackageStartupMessages(library(methods))
 
   # -- in new version, skip this part --
 
-  if(config('new_site_pp')) {
-
-    thresholds_tbls <- create_thresholds_full(schema_name_input=config('results_schema_other'),
-                                         append_tbl=TRUE,#config('append_to_existing'),
-                                         db=config('db_src'))
-
-    dq_names <- pull_dqa_table_names(schema_name = config('results_schema_other'))
-    dq_names_vector <- dq_names[['table']]
-
-    tbl_names <-
-      config('db_src') %>%
-      DBI::dbListObjects(DBI::Id(schema= config('results_schema_other'))) %>%
-      dplyr::pull(table) %>%
-      purrr::map(~slot(.x, 'name')) %>%
-      dplyr::bind_rows() %>%
-      # select(! matches('*_pp_*'))
-      filter(! str_detect(table,'pp')) %>%
-      #filter(str_detect(table,'output|violations')) %>%
-      #filter(! str_detect(table, 'fot')) %>%
-      filter(! str_detect(table, 'thrshld')) %>%
-      filter(! str_detect(table, 'old'))
-
-    tbl_names_short <-
-      tbl_names %>%
-      mutate_all(~gsub(paste0(config('results_name_tag')),'',.))
-
-    tbl_names_short_vector <- tbl_names_short[['table']]
-
-    differences <- setdiff(tbl_names_short_vector,dq_names_vector)
-
-    for(i in differences) {
-
-      output <- create_combined_data(i)
-
-      output
-    }
-
-  } else {
-    thresholds_tbls <- create_thresholds_full(schema_name_input=config('results_schema'),
-                                         append_tbl=FALSE)
-    output_list_to_db(thresholds_tbls,
-                      append=FALSE)
-  }
-
-
-
-
-  # rslt$dqa_tbl_names <- pull_dqa_table_names()
-  # rslt$dqa_tbls <- pull_dqa_tables(rslt$dqa_tbl_names)
-  # rslt$check_names <- get_check_names(rslt$dqa_tbl_names)
-  # rslt$thresholds <- set_broad_thresholds(rslt$check_names)
-  # thresholds_attached <- attach_thresholds(tbls_all=rslt$dqa_tbls,
-  #                                          thresholds=rslt$thresholds)
-  #  output_list_to_db(thresholds_attached,
-  #                    append=FALSE)
+  # if(config('new_site_pp')) {
+  #
+  #   thresholds_tbls <- create_thresholds_full(schema_name_input=config('results_schema_other'),
+  #                                        append_tbl=TRUE,
+  #                                        db=config('db_src'))
+  #
+  #   dq_names <- pull_dqa_table_names(schema_name = config('results_schema_other'))
+  #   dq_names_vector <- dq_names[['table']]
+  #
+  #   tbl_names <-
+  #     config('db_src') %>%
+  #     DBI::dbListObjects(DBI::Id(schema= config('results_schema_other'))) %>%
+  #     dplyr::pull(table) %>%
+  #     purrr::map(~slot(.x, 'name')) %>%
+  #     dplyr::bind_rows() %>%
+  #     filter(! str_detect(table,'pp')) %>%
+  #     filter(! str_detect(table, 'thrshld')) %>%
+  #     filter(! str_detect(table, 'old'))
+  #
+  #   tbl_names_short <-
+  #     tbl_names %>%
+  #     mutate_all(~gsub(paste0(config('results_name_tag')),'',.))
+  #
+  #   tbl_names_short_vector <- tbl_names_short[['table']]
+  #
+  #   differences <- setdiff(tbl_names_short_vector,dq_names_vector)
+  #
+  #   for(i in differences) {
+  #
+  #     output <- create_combined_data(i)
+  #
+  #     output
+  #   }
+  #
+  # } else {
+  #   thresholds_tbls <- create_thresholds_full(schema_name_input=config('results_schema'),
+  #                                        append_tbl=FALSE)
+  #   output_list_to_db(thresholds_tbls,
+  #                     append=FALSE)
+  # }
 
   ## -- and come back here --
   message('Changes between data cycles processing')
@@ -219,6 +204,11 @@ suppressPackageStartupMessages(library(methods))
   copy_to_new(df=rslt$uc_by_year_preprocess,
               name='uc_by_year_pp',
               temporary = FALSE)
+  # redundant, but doing this so that the app only hits pp tables with masked site
+  rslt$uc_grpd_process <- results_tbl('uc_grpd_op_1510')
+  copy_to_new(df=rslt$uc_grpd_process,
+              name='uc_grpd_pp',
+              temporary=FALSE)
 
   message('Missing field: visit id processing')
   rslt$mf_visitid_preprocess <- mf_visitid_preprocess(results='mf_visitid_output_op_1510')
@@ -242,9 +232,9 @@ suppressPackageStartupMessages(library(methods))
   fot_list <- fot_check('row_cts',tblx=rslt$input_tbl)
   output_list_to_db(fot_list)
 
-  rslt$fot_output_distance <- check_fot_all_dist(fot_list$fot_heuristic)
+  rslt$fot_output_distance <- check_fot_all_dist(fot_list$fot_heuristic_pp)
   output_tbl(rslt$fot_output_distance,
-             'fot_output_distance',
+             'fot_output_distance_pp',
              indexes=list('check_name'))
 
   message('Best mapped concepts processing')
@@ -257,14 +247,12 @@ suppressPackageStartupMessages(library(methods))
               name='bmc_conceptset',
               temporary = FALSE)
   # row-level assignment
-  #rslt$bmc_concepts <- bmc_assign_old(bmc_output=results_tbl('bmc_gen_output'))
   rslt$bmc_concepts <-bmc_assign(bmc_output=results_tbl('bmc_gen_output_op_1510'),
                                      conceptset=load_codeset('bmc_conceptset', col_types='cci', indexes=list('check_name')))
 
   output_tbl(rslt$bmc_concepts,
                 name='bmc_gen_output_concepts_pp')
   # computing proportions of best mapped per site/check
-  #rslt$bmc_pp <- bmc_rollup_old(rslt$bmc_concepts)
   rslt$bmc_pp <- bmc_rollup(rslt$bmc_concepts)
   output_tbl(rslt$bmc_pp,
               name='bmc_gen_output_pp')
