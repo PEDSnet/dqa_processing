@@ -55,6 +55,7 @@ mf_visitid,mf_visitid_im,0.99,gt,rows
 mf_visitid,mf_visitid_dp,0.1,gt,rows
 mf_visitid,mf_visitid_ml,0.1,gt,rows
 mf_visitid,mf_visitid_dr,0.1,gt,rows
+mf_visitid,mf_visitid_co,0.05,gt,rows
 bmc,bmc_rxnorm_di,0.8,lt,rows
 bmc,bmc_rxnorm_dp,0.8,lt,rows
 pf,pf_dr,0.08,lt,visits
@@ -107,9 +108,11 @@ vc,vc_im_dose,0.3,gt,rows
 vs,vs_ob_cid,0.4,gt,rows
 vc,vc_co_cscid,0,gt,rows
 vc,vc_co_cid,0,gt,rows
+vc,vc_so_scid,0,gt,rows
 dcon_pts,dcon_pts_ckd-dx_htn-rx,0.2,lt,concordance
 dcon_visits,dcon_ed_visits_conds,0.85,lt,concordance
 dcon_visits,dcon_ip_visits_conds,0.9,lt,concordance
+dcon_visits,dcon_op_visits_conds,0.9,lt,concordance
 dc,dc_pd,0.1,gt,person
 dc,dc_dr,0.15,gt,person
 dc,dc_co,0.15,gt,person
@@ -149,3 +152,5 @@ dc,dc_sp,0.2,gt,person
 vs,vs_adt_cid,0.05,gt,rows
 vs,vs_pd_eth_cid,0,gt,rows
 vs,vs_pd_race_cid,0,gt,rows
+vs,vs_adt_tcid,0,gt,rows
+vs,vs_im_route_cid,0.2,gt,rows
