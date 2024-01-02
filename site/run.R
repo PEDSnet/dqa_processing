@@ -117,7 +117,7 @@ config('retain_intermediates', NA)
 #' during processing of the request.
 #' If it is `NA`, the default value from site_info.R is used.
 #' @md
-config('results_schema', 'dqa_rox_dev')
+config('results_schema', 'dqa_rox')
 
 
 #' when processing a new site
@@ -125,7 +125,7 @@ config('results_schema', 'dqa_rox_dev')
 #' set results_schema_other to (string) name of schema containing additional site's data (only required if new_site_pp=TRUE)
 #' set append_to_existing to TRUE if new_site_pp is TRUE
 config('new_site_pp',FALSE)
-config('results_schema_other', NA)
+config('results_schema_other', 'dqa_rox')
 #config('append_to_existing', FALSE)
 
 #################################################################
@@ -142,7 +142,7 @@ config('results_schema_other', NA)
 #' table name length.
 #' @md
 config('results_name_tag', NA)
-config('local_name_tag', '_op_1291')
+config('local_name_tag', '_op_1510')
 
 #' Execution mode
 #'
