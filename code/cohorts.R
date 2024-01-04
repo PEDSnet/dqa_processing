@@ -125,10 +125,21 @@ uc_by_year_preprocess <- function(results) {
 }
 
 #' Function to add post-processed columns to the unmapped concepts dqa_library output
+#'             and to add a `total` row with for each of the check applications
+#'             for the overall number and proportion of unmapped rows
 #' @param results name of output table for the uc output from dqa_library
 #' @return table with additional columns/etc needed for pp output
 uc_process <- function(results){
-  results_tbl(results)%>%
+  total_uc<-results_tbl(results) %>%
+    group_by(measure, check_type, database_version, check_name) %>%
+    summarise(total_rows=sum(total_rows),
+              unmapped_rows=sum(unmapped_rows))%>%
+    ungroup() %>%
+    mutate(site='total',
+           unmapped_prop=unmapped_rows/total_rows)
+
+  total_uc %>%
+    dplyr::union_all(results_tbl(results))%>%
     mutate(check_name_app=paste0(check_name,"_rows"))
 }
 
