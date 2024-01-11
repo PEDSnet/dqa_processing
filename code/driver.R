@@ -98,8 +98,7 @@ suppressPackageStartupMessages(library(methods))
               temporary=FALSE)
 
   message('Finding previous thresholds')
-  redcap_prev <- .qual_tbl(name='dqa_issues_redcap_op_1510',
-#  redcap_prev <- .qual_tbl(name='dqa_issues_redcap_ops_125',
+  redcap_prev <- .qual_tbl(name='dqa_issues_redcap_ops_125',
                            schema='dqa_rox',
                            db=config('db_src_prev'))
   thresholds_prev <- .qual_tbl(name='thresholds_op_1510',
@@ -175,7 +174,7 @@ suppressPackageStartupMessages(library(methods))
   ## -- and come back here --
   message('Changes between data cycles processing')
   # in future versions, will want to change to not have suffix
-  rslt$dc_preprocess <- dc_preprocess(results='dc_output_op_1510')
+  rslt$dc_preprocess <- dc_preprocess(results='dc_output')
 
   copy_to_new(df=rslt$dc_preprocess,
               name='dc_output_pp',
@@ -183,7 +182,7 @@ suppressPackageStartupMessages(library(methods))
 
   message('Value set and vocabulary violations processing')
   # by vocabulary_id
-  rslt$vc_vs_violations_preprocess <- vc_vs_violations_preprocess(results='vc_vs_violations_op_1510')
+  rslt$vc_vs_violations_preprocess <- vc_vs_violations_preprocess(results='vc_vs_violations')
   copy_to_new(df=rslt$vc_vs_violations_preprocess,
               name='vc_vs_violations_pp',
               temporary = FALSE)
@@ -195,29 +194,29 @@ suppressPackageStartupMessages(library(methods))
 
   message('Unmapped concepts processing')
   # note: this part is new and check_name_app is the only thing added
-  rslt$uc_preprocess <- uc_process(results='uc_output_op_1510')
+  rslt$uc_preprocess <- uc_process(results='uc_output')
   copy_to_new(df=rslt$uc_preprocess,
               name='uc_output_pp',
               temporary = FALSE)
 
-  rslt$uc_by_year_preprocess <- uc_by_year_preprocess(results='uc_by_year_op_1510')
+  rslt$uc_by_year_preprocess <- uc_by_year_preprocess(results='uc_by_year')
   copy_to_new(df=rslt$uc_by_year_preprocess,
               name='uc_by_year_pp',
               temporary = FALSE)
   # redundant, but doing this so that the app only hits pp tables with masked site
-  rslt$uc_grpd_process <- results_tbl('uc_grpd_op_1510')
+  rslt$uc_grpd_process <- results_tbl('uc_grpd')
   copy_to_new(df=rslt$uc_grpd_process,
               name='uc_grpd_pp',
               temporary=FALSE)
 
   message('Missing field: visit id processing')
-  rslt$mf_visitid_preprocess <- mf_visitid_preprocess(results='mf_visitid_output_op_1510')
+  rslt$mf_visitid_preprocess <- mf_visitid_preprocess(results='mf_visitid_output')
   copy_to_new(df=rslt$mf_visitid_preprocess,
               name='mf_visitid_pp',
               temporary = FALSE)
 
   message('Person facts processing')
-  rslt$pf_output_preprocess <- pf_output_preprocess(results='pf_output_op_1510')
+  rslt$pf_output_preprocess <- pf_output_preprocess(results='pf_output')
   copy_to_new(df=rslt$pf_output_preprocess,
               name='pf_output_pp',
               temporary = FALSE)
@@ -227,7 +226,7 @@ suppressPackageStartupMessages(library(methods))
   output_tbl(rslt$fot_map,
              'fot_map',
              indexes=list('domain'))
-  rslt$input_tbl <- results_tbl('fot_output_op_1510') %>% inner_join(results_tbl('fot_map'),by='check_name')
+  rslt$input_tbl <- results_tbl('fot_output') %>% inner_join(results_tbl('fot_map'),by='check_name')
 
   fot_list <- fot_check('row_cts',tblx=rslt$input_tbl)
   output_list_to_db(fot_list)
@@ -241,13 +240,13 @@ suppressPackageStartupMessages(library(methods))
   # NOTE: test this part
   # sending the set of best/not best mapped concepts to the schema
   rslt$bmc_conceptset<-load_codeset('bmc_conceptset', col_types='cci', indexes=list('check_name')) %>%
-    inner_join(select(results_tbl('bmc_gen_output_op_1510'), check_name, check_desc)%>%distinct(),
+    inner_join(select(results_tbl('bmc_gen_output'), check_name, check_desc)%>%distinct(),
                       by = 'check_name')
   copy_to_new(df=rslt$bmc_conceptset,
               name='bmc_conceptset',
               temporary = FALSE)
   # row-level assignment
-  rslt$bmc_concepts <-bmc_assign(bmc_output=results_tbl('bmc_gen_output_op_1510'),
+  rslt$bmc_concepts <-bmc_assign(bmc_output=results_tbl('bmc_gen_output'),
                                      conceptset=load_codeset('bmc_conceptset', col_types='cci', indexes=list('check_name')))
 
   output_tbl(rslt$bmc_concepts,
@@ -265,14 +264,14 @@ suppressPackageStartupMessages(library(methods))
   #            name='dcon_output_pp_byyr')
 
   # overall
-  rslt$dcon_output_pp <- apply_dcon_pp(dcon_tbl=results_tbl('dcon_output_op_1510'),
+  rslt$dcon_output_pp <- apply_dcon_pp(dcon_tbl=results_tbl('dcon_output'),
                                             byyr=FALSE)
   output_tbl(rslt$dcon_output_pp,
              name='dcon_output_pp')
 
   message("ECP processing")
   # NOTE this might just be temporary, just making sure it is accounted for and matches expectations for dashboard
-  rslt$ecp_process <- results_tbl('ecp_output_op_1510') %>%
+  rslt$ecp_process <- results_tbl('ecp_output') %>%
     mutate(check_name_app=paste0(check_name, '_person'))
   copy_to_new(df=rslt$ecp_process,
               name='ecp_output_pp',
@@ -299,7 +298,7 @@ suppressPackageStartupMessages(library(methods))
 
   message('Generate and add masked site identifiers to all tables with "site" column')
   rslt$pp_tbl_names <- pull_site_tables()
-  rslt$tbls_anon <- attach_anon_id(all_sites_tbl=results_tbl('dc_output_op_1510'),
+  rslt$tbls_anon <- attach_anon_id(all_sites_tbl=results_tbl('dc_output'),
                                    tbls_to_anon=rslt$pp_tbl_names)
   output_list_to_db_collect(rslt$tbls_anon,
                             append=FALSE)
