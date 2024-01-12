@@ -58,7 +58,7 @@ mf_visitid,mf_visitid_dr,0.1,gt,rows
 mf_visitid,mf_visitid_co,0.05,gt,rows
 bmc,bmc_rxnorm_di,0.8,lt,rows
 bmc,bmc_rxnorm_dp,0.8,lt,rows
-pf,pf_dr,0.08,lt,visits
+pf,pf_visits_dr,0.08,lt,visits
 pf,pf_opvisits_dr,0.05,lt,visits
 pf,pf_opvisits_co,0.6,lt,visits
 pf,pf_opvisits_prdr,0.6,lt,visits

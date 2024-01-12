@@ -84,7 +84,9 @@ dc_preprocess <- function(results) {
 vc_vs_violations_preprocess <- function(results) {
 
   results_tbl(results) %>%
-    mutate(prop_total_viol=round(total_viol_ct/total_denom_ct,8),
+    mutate(check_name=case_when(check_name=='vc_im_route_cid'~'vs_im_route_cid',
+                                TRUE~check_name),
+           prop_total_viol=round(total_viol_ct/total_denom_ct,8),
            prop_total_pt_viol=round(total_viol_pt_ct/total_pt_ct,8)) %>%
     group_by(site, table_application, measurement_column, vocabulary_id, check_type, check_name, total_denom_ct) %>%
     summarise(tot_ct = sum(total_viol_ct),
@@ -210,11 +212,15 @@ mf_visitid_preprocess <- function(results) {
 
 pf_output_preprocess <- function(results) {
 
-  rslt_collect<-results_tbl(results)%>%collect()
+  rslt_collect<-results_tbl(results)%>%collect()%>%
+    mutate(check_name=case_when(check_name=='pf_dr'~'pf_visits_dr',
+                                TRUE~check_name))
 
   db_version<-config('current_version')
 
   pf_totals <- results_tbl(results) %>%
+    mutate(check_name=case_when(check_name=='pf_dr'~'pf_visits_dr',
+                                TRUE~check_name))%>%
     group_by(check_description, check_name) %>%
     summarise(no_fact_visits=sum(no_fact_visits),
               no_fact_pts=sum(no_fact_pts),

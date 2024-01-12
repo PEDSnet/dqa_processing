@@ -101,10 +101,16 @@ suppressPackageStartupMessages(library(methods))
   redcap_prev <- .qual_tbl(name='dqa_issues_redcap_ops_125',
                            schema='dqa_rox',
                            db=config('db_src_prev'))
+  # neither of the changed names are in here so don't need to update
   thresholds_prev <- .qual_tbl(name='thresholds_op_1510',
                                schema='dqa_rox',
-                               db=config('db_src_prev'))
-  ## This table will exist in schema moving forward, but first introducted to schema in v52
+                               db=config('db_src_prev')) %>%
+    # only for v52 run because check_name changed between cycles
+    mutate(check_name=case_when(check_name=='pf_dr'~'pf_visits_dr',
+                                TRUE~check_name),
+           check_name_app=case_when(check_name_app=='pf_dr_visits'~'pf_visits_dr_visits',
+                                    TRUE~check_name_app))
+  ## This table will exist in schema moving forward, but first introduced to schema in v52
   # thresholds_history <- .qual_tbl(name='thresholds_history',
   #                                 schema='dqa_rox',
   #                                 db=config('db_src_prev'))
