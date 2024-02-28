@@ -211,8 +211,7 @@ compute_new_thresholds <- function(redcap_tbl,
   thresholds_previous <-
     previous_thresholds %>%
     select(-c(threshold_previous)) %>%
-    # NOTE: in the future, will want to refer to this as threshold
-    rename(threshold_previous = newthreshold) %>%
+    rename(threshold_previous = threshold) %>%
     select(check_type,
            check_name_app,
            check_name,
@@ -221,9 +220,9 @@ compute_new_thresholds <- function(redcap_tbl,
            threshold_version_global,
            application,
            site,
-           threshold_version) %>%
+           threshold_version) #%>%
     # NOTE: this is here because of weird formatting on old thresholds, hopefully would be resolved in future versions
-    mutate(threshold_previous=round(threshold_previous,2))
+   # mutate(threshold_previous=round(threshold_previous,2))
 
   # bring in the prior redcap data and replace thresholds if they were adjusted in prior cycle
   thresholds_previous_merged <-

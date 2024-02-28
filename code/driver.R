@@ -98,11 +98,11 @@ suppressPackageStartupMessages(library(methods))
               temporary=FALSE)
 
   message('Finding previous thresholds')
-  redcap_prev <- .qual_tbl(name='dqa_issues_redcap_ops_125',
+  redcap_prev <- .qual_tbl(name='dqa_issues_redcap',
                            schema='dqa_rox',
                            db=config('db_src_prev'))
   # neither of the changed names are in here so don't need to update
-  thresholds_prev <- .qual_tbl(name='thresholds_op_1510',
+  thresholds_prev <- .qual_tbl(name='thresholds',
                                schema='dqa_rox',
                                db=config('db_src_prev')) %>%
     # only for v52 run because check_name changed between cycles
@@ -111,9 +111,9 @@ suppressPackageStartupMessages(library(methods))
            check_name_app=case_when(check_name_app=='pf_dr_visits'~'pf_visits_dr_visits',
                                     TRUE~check_name_app))
   ## This table will exist in schema moving forward, but first introduced to schema in v52
-  # thresholds_history <- .qual_tbl(name='thresholds_history',
-  #                                 schema='dqa_rox',
-  #                                 db=config('db_src_prev'))
+  thresholds_history <- .qual_tbl(name='thresholds_history',
+                                  schema='dqa_rox',
+                                  db=config('db_src_prev'))
 
   message('Assigning thresholds for current cycle')
   thresholds_this_version <-
@@ -128,58 +128,13 @@ suppressPackageStartupMessages(library(methods))
 
   message('Creating table to track threshold versions')
   ## Introduced the first time in v52, but will want to reference previous thresholds moving forward
-  # thresholds_history_new <- bind_rows(thresholds_this_version,
-  #                                     thresholds_history)
-  thresholds_history_new <- thresholds_this_version
+  thresholds_history_new <- bind_rows(thresholds_this_version,
+                                      thresholds_history%>%collect())
+  # thresholds_history_new <- thresholds_this_version
   output_tbl(thresholds_history_new,
              name='thresholds_history')
 
-  # -- in new version, skip this part --
-
-  # if(config('new_site_pp')) {
-  #
-  #   thresholds_tbls <- create_thresholds_full(schema_name_input=config('results_schema_other'),
-  #                                        append_tbl=TRUE,
-  #                                        db=config('db_src'))
-  #
-  #   dq_names <- pull_dqa_table_names(schema_name = config('results_schema_other'))
-  #   dq_names_vector <- dq_names[['table']]
-  #
-  #   tbl_names <-
-  #     config('db_src') %>%
-  #     DBI::dbListObjects(DBI::Id(schema= config('results_schema_other'))) %>%
-  #     dplyr::pull(table) %>%
-  #     purrr::map(~slot(.x, 'name')) %>%
-  #     dplyr::bind_rows() %>%
-  #     filter(! str_detect(table,'pp')) %>%
-  #     filter(! str_detect(table, 'thrshld')) %>%
-  #     filter(! str_detect(table, 'old'))
-  #
-  #   tbl_names_short <-
-  #     tbl_names %>%
-  #     mutate_all(~gsub(paste0(config('results_name_tag')),'',.))
-  #
-  #   tbl_names_short_vector <- tbl_names_short[['table']]
-  #
-  #   differences <- setdiff(tbl_names_short_vector,dq_names_vector)
-  #
-  #   for(i in differences) {
-  #
-  #     output <- create_combined_data(i)
-  #
-  #     output
-  #   }
-  #
-  # } else {
-  #   thresholds_tbls <- create_thresholds_full(schema_name_input=config('results_schema'),
-  #                                        append_tbl=FALSE)
-  #   output_list_to_db(thresholds_tbls,
-  #                     append=FALSE)
-  # }
-
-  ## -- and come back here --
   message('Changes between data cycles processing')
-  # in future versions, will want to change to not have suffix
   rslt$dc_preprocess <- dc_preprocess(results='dc_output')
 
   copy_to_new(df=rslt$dc_preprocess,
@@ -189,6 +144,7 @@ suppressPackageStartupMessages(library(methods))
   message('Value set and vocabulary violations processing')
   # by vocabulary_id
   rslt$vc_vs_violations_preprocess <- vc_vs_violations_preprocess(results='vc_vs_violations')
+
   copy_to_new(df=rslt$vc_vs_violations_preprocess,
               name='vc_vs_violations_pp',
               temporary = FALSE)
