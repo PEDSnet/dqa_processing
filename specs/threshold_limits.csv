@@ -75,8 +75,8 @@ pf,pf_ipvisits_icu,0.1,lt,visits
 pf,pf_ipvisits_im,0,lt,visits
 pf,pf_ipvisits_ml,0.5,lt,visits
 pf,pf_ipvisits_pr,0.8,lt,visits
-pf,pf_ipvisits_prdr,0.9,lt,visits
-pf,pf_ipvisits_prdrml,0.85,lt,visits
+pf,pf_ipvisits_prdr,0.7,lt,visits
+pf,pf_ipvisits_prdrml,0.6,lt,visits
 pf,pf_ipvisits_pv_spec,0.3,lt,visits
 pf,pf_ipvisits_vp,0.5,lt,visits
 pf,pf_opvisits_co,0.6,lt,visits
