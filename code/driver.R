@@ -143,19 +143,18 @@ suppressPackageStartupMessages(library(methods))
 
   message('Value set and vocabulary violations processing')
   # by vocabulary_id
-  rslt$vc_vs_violations_preprocess <- vc_vs_violations_preprocess(results='vc_vs_violations')
+  rslt$vc_vs_output_preprocess <- vc_vs_violations_preprocess(results='vc_vs_violations')
 
-  copy_to_new(df=rslt$vc_vs_violations_preprocess,
-              name='vc_vs_violations_pp',
+  copy_to_new(df=rslt$vc_vs_output_preprocess,
+              name='vc_vs_output_pp',
               temporary = FALSE)
   # by check_name_app
-  rslt$vc_vs_output_pp <- vc_vs_rollup(pp_output = rslt$vc_vs_violations_preprocess)
-  copy_to_new(df=rslt$vc_vs_output_pp,
-              name='vc_vs_output_pp',
+  rslt$vc_vs_violations_pp <- vc_vs_rollup(pp_output = rslt$vc_vs_output_preprocess)
+  copy_to_new(df=rslt$vc_vs_violations_pp,
+              name='vc_vs_violations_pp',
               temporary=FALSE)
 
   message('Unmapped concepts processing')
-  # note: this part is new and check_name_app is the only thing added
   rslt$uc_preprocess <- uc_process(results='uc_output')
   copy_to_new(df=rslt$uc_preprocess,
               name='uc_output_pp',
@@ -165,7 +164,6 @@ suppressPackageStartupMessages(library(methods))
   copy_to_new(df=rslt$uc_by_year_preprocess,
               name='uc_by_year_pp',
               temporary = FALSE)
-  # redundant, but doing this so that the app only hits pp tables with masked site
   rslt$uc_grpd_process <- results_tbl('uc_grpd')
   copy_to_new(df=rslt$uc_grpd_process,
               name='uc_grpd_pp',

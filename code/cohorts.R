@@ -24,9 +24,6 @@ dc_preprocess <- function(results) {
                 values_from=c(total_ct, total_pt_ct))%>%
     collect()
 
-  # distinct <- dc_wider %>%
-  #   distinct(check_name, threshold, threshold_operator)
-
   prev_v <- paste0('total_ct_',config('previous_version'))
   current_v <- paste0('total_ct_',config('current_version'))
 
@@ -35,7 +32,6 @@ dc_preprocess <- function(results) {
 
 
    dc_totals_person <- dc_wider %>%
-#     filter(application=='person')%>%
      group_by(domain, check_name, check_type) %>%
      summarise({{prev_v}} := sum(.data[[prev_v_pt]]),
                {{current_v}} := sum(.data[[current_v_pt]])) %>%
@@ -43,15 +39,11 @@ dc_preprocess <- function(results) {
      ungroup()
 
    dc_totals_rows <- dc_wider %>%
-  #   filter(application=='rows')%>%
      group_by(domain, check_name, check_type) %>%
      summarise({{prev_v}} := sum(.data[[prev_v]]),
                {{current_v}} := sum(.data[[current_v]])) %>%
      mutate(site='total', application='rows')%>%
      ungroup()
-
- # dc_totals <- dc_totals_person %>%
- #   full_join(dc_totals_rows, by = c('site','check_type', 'check_name', 'domain'))
 
    dc_site_pats <- dc_wider %>% select(-c({{prev_v}}, {{current_v}})) %>%
      rename({{prev_v}}:=all_of(prev_v_pt),
@@ -67,9 +59,6 @@ dc_preprocess <- function(results) {
     mutate(prop_total_change=
              case_when(!!sym(prev_v) == 0 ~ NA_real_,
                        TRUE ~ round((.data[[current_v]]-.data[[prev_v]])/.data[[prev_v]],2))) %>%
-    # mutate(prop_total_pt_change=
-    #          case_when(!!sym(prev_v_pt)==0 ~ NA_real_,
-    #                    TRUE ~ round((.data[[current_v_pt]]-.data[[prev_v_pt]])/.data[[prev_v_pt]],2))) %>%
     mutate(check_name_app=paste0(check_name, "_", application))
 
 }
@@ -97,9 +86,9 @@ vc_vs_violations_preprocess <- function(results) {
 #' function to sum total counts by site, and check_name
 #' and calculate proportions
 #'
-#' @param pp_output vs_vc_violations results tbl
+#' @param pp_output vs_vc_output results tbl
 #'
-#' @return vc_vs_violations tbl with summed total counts and proportions per check_name
+#' @return vc_vs_output tbl with summed total counts and proportions per check_name, only for violations
 
 vc_vs_rollup <- function(pp_output){
   pp_output %>%
@@ -212,15 +201,16 @@ mf_visitid_preprocess <- function(results) {
 
 pf_output_preprocess <- function(results) {
 
-  rslt_collect<-results_tbl(results)%>%collect()%>%
-    mutate(check_name=case_when(check_name=='pf_dr'~'pf_visits_dr',
-                                TRUE~check_name))
+  rslt_collect<-results_tbl(results)%>%collect()
+  # %>%
+  #   mutate(check_name=case_when(check_name=='pf_dr'~'pf_visits_dr',
+  #                               TRUE~check_name))
 
   db_version<-config('current_version')
 
   pf_totals <- results_tbl(results) %>%
-    mutate(check_name=case_when(check_name=='pf_dr'~'pf_visits_dr',
-                                TRUE~check_name))%>%
+    # mutate(check_name=case_when(check_name=='pf_dr'~'pf_visits_dr',
+    #                             TRUE~check_name))%>%
     group_by(check_description, check_name) %>%
     summarise(no_fact_visits=sum(no_fact_visits),
               no_fact_pts=sum(no_fact_pts),
@@ -240,11 +230,12 @@ pf_output_preprocess <- function(results) {
 
   # have to collect to bind rows since total columns may be missing site-specific things (e.g. thresholds)
    bind_rows(rslt_collect,pf_totals)%>%
-     mutate(visit_type = case_when(str_detect(check_description, "^ip")~ 'inpatient',
+     mutate(visit_type = case_when(str_detect(check_description, "^long_ip")~'long_inpatient',
+                                   str_detect(check_description, "^ip")~ 'inpatient',
                                    str_detect(check_description, "^all")~'all',
                                    str_detect(check_description, "^op")~'outpatient',
                                    str_detect(check_description, "^ed")~'emergency'),
-            check_description=str_remove(check_description, "^ip_|^all_|^op_|^ed_")) %>%
+            check_description=str_remove(check_description, "^long_ip_|^ip_|^all_|^op_|^ed_")) %>%
      mutate(check_description= case_when(check_description=='all_visits_with_procs_drugs_labs' ~ 'visits_with_procs_drugs_labs',
                                          TRUE ~ check_description))%>%
      mutate(check_name_app=paste0(check_name, "_visits"))
