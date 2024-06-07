@@ -79,7 +79,7 @@
                                      filter(site != 'total'),
                                    check_string = 'bmc',
                                    num_col = 'best_row_prop',
-                                   grp_vars = c('check_name', 'check_desc'))
+                                   grp_vars = c('check_name', 'check_desc', 'include_new'))
   
   output_tbl(rslt$bmc_ln%>% union(results_tbl('bmc_gen_output_pp') %>%
                                           filter(site == 'total') %>% collect()), 
