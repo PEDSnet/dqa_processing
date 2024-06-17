@@ -104,12 +104,7 @@ suppressPackageStartupMessages(library(methods))
   # neither of the changed names are in here so don't need to update
   thresholds_prev <- .qual_tbl(name='thresholds',
                                schema='dqa_rox',
-                               db=config('db_src_prev')) %>%
-    # only for v52 run because check_name changed between cycles
-    mutate(check_name=case_when(check_name=='pf_dr'~'pf_visits_dr',
-                                TRUE~check_name),
-           check_name_app=case_when(check_name_app=='pf_dr_visits'~'pf_visits_dr_visits',
-                                    TRUE~check_name_app))
+                               db=config('db_src_prev'))
   ## This table will exist in schema moving forward, but first introduced to schema in v52
   thresholds_history <- .qual_tbl(name='thresholds_history',
                                   schema='dqa_rox',
@@ -196,8 +191,13 @@ suppressPackageStartupMessages(library(methods))
              'fot_output_distance_pp',
              indexes=list('check_name'))
 
+  rslt$fot_output_ratios<-add_fot_ratios(fot_lib_output=results_tbl('fot_output'),
+                                         fot_map=rslt$fot_map,
+                                         denom_mult=10000L)
+  output_tbl(rslt$fot_output_ratios,
+             name='fot_output_mnth_ratio_pp')
+
   message('Best mapped concepts processing')
-  # NOTE: test this part
   # sending the set of best/not best mapped concepts to the schema
   rslt$bmc_conceptset<-load_codeset('bmc_conceptset', col_types='cci', indexes=list('check_name')) %>%
     inner_join(select(results_tbl('bmc_gen_output'), check_name, check_desc)%>%distinct(),

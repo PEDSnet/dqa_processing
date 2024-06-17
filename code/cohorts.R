@@ -53,13 +53,26 @@ dc_preprocess <- function(results) {
    dc_site_rows <- dc_wider %>% select(-c({{prev_v_pt}}, {{current_v_pt}})) %>%
      mutate(application='rows')
 
-  bind_rows(dc_totals_person, dc_totals_rows) %>%
+  all_dat<-bind_rows(dc_totals_person, dc_totals_rows) %>%
     bind_rows(., dc_site_pats) %>%
     bind_rows(., dc_site_rows) %>%
     mutate(prop_total_change=
              case_when(!!sym(prev_v) == 0 ~ NA_real_,
                        TRUE ~ round((.data[[current_v]]-.data[[prev_v]])/.data[[prev_v]],2))) %>%
     mutate(check_name_app=paste0(check_name, "_", application))
+
+  # adding in a scaled proportion
+  max_val<-all_dat%>%summarise(m=max(abs(prop_total_change), na.rm=TRUE))%>%pull()
+
+  all_dat %>%
+    mutate(prop_total_change=case_when(is.na(prop_total_change)~0,
+                                       TRUE~prop_total_change),
+           abs_prop=abs(prop_total_change),
+           newval=1+((exp(100)-1)/(max_val)*(abs_prop)),
+           plot_prop=case_when(prop_total_change<0~-1*log(newval),
+                                TRUE~log(newval)))%>%
+    select(-c(abs_prop, newval))
+
 
 }
 
@@ -648,3 +661,21 @@ bmc_rollup <- function(bmc_output_pp,
 
 }
 
+add_fot_ratios<-function(fot_lib_output,
+                         fot_map,
+                         denom_mult){
+  fot_input_tbl<-fot_lib_output %>%
+    mutate(row_ratio=case_when(row_visits==0~0,
+                               TRUE~row_cts/(row_visits*denom_mult)))%>%collect()
+
+  fot_input_tbl_allsite<-fot_input_tbl%>%
+    group_by(check_type, check_name, check_desc, database_version, month_end) %>%
+    summarise(row_ratio=median(row_ratio, na.rm=TRUE))%>%
+    ungroup()%>%
+    mutate(site='allsite_median')
+
+  bind_rows(fot_input_tbl,
+            fot_input_tbl_allsite)%>%
+    left_join(fot_map, by = 'check_name')
+
+}

@@ -27,3 +27,7 @@ visits,fot_vo_office
 visits,fot_adt_picu
 drugs,fot_dp
 visits,fot_vo_th
+measurement_anthro,fot_ma_wt
+measurement_anthro,fot_ma_ht
+measurement_vitals,fot_mv_sbp
+measurement_vitals,fot_mv_dbp
