@@ -152,8 +152,8 @@ config('local_name_tag', '_op_1510')
 #' @md
 config('execution_mode', 'development')
 #' current_version should match the most recent db version
-config('current_version','v53')
-config('previous_version','v52')
+config('current_version','v54')
+config('previous_version','v53')
 #' Request-specific debug output for database operations
 #'
 #' This Boolean value specifies whether the query log should include
