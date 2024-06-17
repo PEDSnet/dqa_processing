@@ -24,9 +24,6 @@ dc_preprocess <- function(results) {
                 values_from=c(total_ct, total_pt_ct))%>%
     collect()
 
-  # distinct <- dc_wider %>%
-  #   distinct(check_name, threshold, threshold_operator)
-
   prev_v <- paste0('total_ct_',config('previous_version'))
   current_v <- paste0('total_ct_',config('current_version'))
 
@@ -34,33 +31,47 @@ dc_preprocess <- function(results) {
   current_v_pt <- paste0('total_pt_ct_',config('current_version'))
 
 
-  dc_totals_person <- dc_wider %>%
-    filter(application=='person')%>%
-    group_by(domain, check_name) %>%
-    summarise({{prev_v_pt}} := sum(.data[[prev_v_pt]]),
-              {{current_v_pt}} := sum(.data[[current_v_pt]])) %>%
-    mutate(site='total', check_type='dc')%>%
-    ungroup()
+   dc_totals_person <- dc_wider %>%
+     group_by(domain, check_name, check_type) %>%
+     summarise({{prev_v}} := sum(.data[[prev_v_pt]]),
+               {{current_v}} := sum(.data[[current_v_pt]])) %>%
+     mutate(site='total', application='person')%>%
+     ungroup()
 
-  dc_totals_rows <- dc_wider %>%
-    filter(application=='rows')%>%
-    group_by(domain, check_name) %>%
-    summarise({{prev_v}} := sum(.data[[prev_v]]),
-              {{current_v}} := sum(.data[[current_v]])) %>%
-    mutate(site='total', check_type='dc')%>%
-    ungroup()
+   dc_totals_rows <- dc_wider %>%
+     group_by(domain, check_name, check_type) %>%
+     summarise({{prev_v}} := sum(.data[[prev_v]]),
+               {{current_v}} := sum(.data[[current_v]])) %>%
+     mutate(site='total', application='rows')%>%
+     ungroup()
 
-  dc_totals <- dc_totals_person %>%
-    full_join(dc_totals_rows, by = c('site','check_type', 'check_name', 'domain'))
+   dc_site_pats <- dc_wider %>% select(-c({{prev_v}}, {{current_v}})) %>%
+     rename({{prev_v}}:=all_of(prev_v_pt),
+            {{current_v}}:=all_of(current_v_pt))%>%
+     mutate(application='person')
 
-  bind_rows(dc_wider, dc_totals) %>%
+   dc_site_rows <- dc_wider %>% select(-c({{prev_v_pt}}, {{current_v_pt}})) %>%
+     mutate(application='rows')
+
+  all_dat<-bind_rows(dc_totals_person, dc_totals_rows) %>%
+    bind_rows(., dc_site_pats) %>%
+    bind_rows(., dc_site_rows) %>%
     mutate(prop_total_change=
              case_when(!!sym(prev_v) == 0 ~ NA_real_,
                        TRUE ~ round((.data[[current_v]]-.data[[prev_v]])/.data[[prev_v]],2))) %>%
-    mutate(prop_total_pt_change=
-             case_when(!!sym(prev_v_pt)==0 ~ NA_real_,
-                       TRUE ~ round((.data[[current_v_pt]]-.data[[prev_v_pt]])/.data[[prev_v_pt]],2))) %>%
-    arrange(site, domain)
+    mutate(check_name_app=paste0(check_name, "_", application))
+
+  # adding in a scaled proportion
+  max_val<-all_dat%>%summarise(m=max(abs(prop_total_change), na.rm=TRUE))%>%pull()
+
+  all_dat %>%
+    mutate(prop_total_change=case_when(is.na(prop_total_change)~0,
+                                       TRUE~prop_total_change),
+           abs_prop=abs(prop_total_change),
+           newval=1+((exp(100)-1)/(max_val)*(abs_prop)),
+           plot_prop=case_when(prop_total_change<0~-1*log(newval),
+                                TRUE~log(newval)))%>%
+    select(-c(abs_prop, newval))
 
 
 }
@@ -74,17 +85,32 @@ dc_preprocess <- function(results) {
 
 vc_vs_violations_preprocess <- function(results) {
 
-  distinct <- results_tbl(results) %>%
-    distinct(check_name, threshold, threshold_operator)
-
-
-  c<-results_tbl(results) %>%
+  results_tbl(results) %>%
+    filter(check_name!='vs_no_violation')%>%
     mutate(prop_total_viol=round(total_viol_ct/total_denom_ct,8),
            prop_total_pt_viol=round(total_viol_pt_ct/total_pt_ct,8)) %>%
-    group_by(site, table_application, vocabulary_id, check_type, check_name) %>%
+    group_by(site, table_application, measurement_column, vocabulary_id, check_type, check_name, total_denom_ct, accepted_value) %>%
     summarise(tot_ct = sum(total_viol_ct),
               tot_prop = sum(prop_total_viol)) %>%
-    inner_join(distinct)
+    ungroup()
+
+}
+
+#' function to sum total counts by site, and check_name
+#' and calculate proportions
+#'
+#' @param pp_output vs_vc_output results tbl
+#'
+#' @return vc_vs_output tbl with summed total counts and proportions per check_name, only for violations
+
+vc_vs_rollup <- function(pp_output){
+  pp_output %>%
+    filter(!accepted_value)%>%
+    group_by(site, table_application, measurement_column, check_type, check_name, total_denom_ct) %>%
+    summarise(tot_ct=sum(tot_ct),
+              tot_prop=sum(tot_prop))%>%
+    ungroup()%>%
+    mutate(check_name_app=paste0(check_name, "_rows"))
 
 }
 
@@ -102,9 +128,27 @@ uc_by_year_preprocess <- function(results) {
     mutate(prop_total=total_unmapped_row_ct/total_row_ct)
 }
 
+#' Function to add post-processed columns to the unmapped concepts dqa_library output
+#'             and to add a `total` row with for each of the check applications
+#'             for the overall number and proportion of unmapped rows
+#' @param results name of output table for the uc output from dqa_library
+#' @return table with additional columns/etc needed for pp output
+uc_process <- function(results){
+  total_uc<-results_tbl(results) %>%
+    group_by(measure, check_type, database_version, check_name) %>%
+    summarise(total_rows=sum(total_rows),
+              unmapped_rows=sum(unmapped_rows))%>%
+    ungroup() %>%
+    mutate(site='total',
+           unmapped_prop=unmapped_rows/total_rows)
 
-#' function to take total_cts from dc_output, merge with mf_visitid, and
-#' add proportions
+  total_uc %>%
+    dplyr::union_all(results_tbl(results))%>%
+    mutate(check_name_app=paste0(check_name,"_rows"))
+}
+
+
+#' function to add proportions to mf results
 #'
 #' @param results mf_visitid results tbl
 #' @param results_dc output from the changes between data cycles check from dqa_library
@@ -113,21 +157,20 @@ uc_by_year_preprocess <- function(results) {
 #' @return mf_visitid tbl with additional domain, total_ct, and proportion
 #' column
 
-mf_visitid_preprocess <- function(results, results_dc, db_version) {
+mf_visitid_preprocess <- function(results) {
 
-  dc_merge <- results_dc %>%
-    filter(database_version == db_version,
-           application=='rows')%>%
-    select(site, total_ct, domain)
-  # compute total row counts for overall data
-  dc_total <- dc_merge %>%
-    group_by(domain)%>%
-    summarise(total_ct=sum(total_ct))%>%
-    ungroup()%>%
-    mutate(site='total')
-
-  dc_overall <- dc_merge %>%
-    dplyr::union_all(dc_total)
+  # dc_merge <- results_dc %>%
+  #   filter(database_version == db_version)%>%
+  #   select(site, total_ct, domain)
+  # # compute total row counts for overall data
+  # dc_total <- dc_merge %>%
+  #   group_by(domain)%>%
+  #   summarise(total_ct=sum(total_ct))%>%
+  #   ungroup()%>%
+  #   mutate(site='total')
+  #
+  # dc_overall <- dc_merge %>%
+  #   dplyr::union_all(dc_total)
 
   test_mf <- results_tbl(results) %>%
     mutate(
@@ -145,18 +188,20 @@ mf_visitid_preprocess <- function(results, results_dc, db_version) {
               missing_visits_total=sum(missing_visits_total),
               missing_visits_distinct=sum(missing_visits_distinct),
               visit_na=sum(visit_na),
-              total_id=sum(total_id)) %>%
+              total_id=sum(total_id),
+              total_ct=sum(total_ct)) %>%
     ungroup()%>%
     mutate(site = 'total')
 
   # compute proportions
   test_mf %>%
     dplyr::union_all(test_mf_overall)%>%
-    left_join(dc_overall, by = c("site", "domain")) %>%
+   # left_join(dc_overall, by = c("site", "domain")) %>%
     filter(total_ct!=0)%>%
     mutate(prop_total_visits = round(total_visits/total_ct, 2),
            prop_missing_visits_total = round(missing_visits_total/total_ct,2))%>%
-    distinct()
+   # distinct()%>%
+    mutate(check_name_app=paste0(check_name, "_rows"))
 
 }
 
@@ -170,10 +215,15 @@ mf_visitid_preprocess <- function(results, results_dc, db_version) {
 pf_output_preprocess <- function(results) {
 
   rslt_collect<-results_tbl(results)%>%collect()
+  # %>%
+  #   mutate(check_name=case_when(check_name=='pf_dr'~'pf_visits_dr',
+  #                               TRUE~check_name))
 
   db_version<-config('current_version')
 
   pf_totals <- results_tbl(results) %>%
+    # mutate(check_name=case_when(check_name=='pf_dr'~'pf_visits_dr',
+    #                             TRUE~check_name))%>%
     group_by(check_description, check_name) %>%
     summarise(no_fact_visits=sum(no_fact_visits),
               no_fact_pts=sum(no_fact_pts),
@@ -193,13 +243,15 @@ pf_output_preprocess <- function(results) {
 
   # have to collect to bind rows since total columns may be missing site-specific things (e.g. thresholds)
    bind_rows(rslt_collect,pf_totals)%>%
-     mutate(visit_type = case_when(str_detect(check_description, "^ip")~ 'inpatient',
+     mutate(visit_type = case_when(str_detect(check_description, "^long_ip")~'long_inpatient',
+                                   str_detect(check_description, "^ip")~ 'inpatient',
                                    str_detect(check_description, "^all")~'all',
                                    str_detect(check_description, "^op")~'outpatient',
                                    str_detect(check_description, "^ed")~'emergency'),
-            check_description=str_remove(check_description, "^ip_|^all_|^op_|^ed_")) %>%
+            check_description=str_remove(check_description, "^long_ip_|^ip_|^all_|^op_|^ed_")) %>%
      mutate(check_description= case_when(check_description=='all_visits_with_procs_drugs_labs' ~ 'visits_with_procs_drugs_labs',
-                                         TRUE ~ check_description))
+                                         TRUE ~ check_description))%>%
+     mutate(check_name_app=paste0(check_name, "_visits"))
 
 }
 
@@ -284,9 +336,9 @@ fot_check <- function(target_col,
     mutate(site='all')
 
 
-  return(list(fot_heuristic= dplyr::union(rv %>% select(cols_to_keep),
+  return(list(fot_heuristic_pp= dplyr::union(rv %>% select(cols_to_keep),
                                           rv_agg),#%>% output_tbl('fot_heuristic'),
-              fot_heuristic_summary=dplyr::union(rv_summary,
+              fot_heuristic_summary_pp=dplyr::union(rv_summary,
                                                  rv_summary_allsites))) #%>% output_tbl('fot_heuristic_summary'),
               #network_check_tbl = rv_agg %>% output_tbl('fot_heuristic_network_wide')))
 }
@@ -477,7 +529,8 @@ apply_dcon_pp <- function(dcon_tbl,
     select(-c(cohort_1, cohort_2))%>%
     distinct()
   }
-  return(dcon_tbl_pp)
+  return(dcon_tbl_pp%>%
+           mutate(check_name_app=paste0(check_name,"_concordance")))
 }
 
 #' Function to assign a "best" indicator and to add a site='total' count per concept
@@ -487,7 +540,7 @@ apply_dcon_pp <- function(dcon_tbl,
 #'                      concept: concept to match values in bmc_output
 #'                      include: 0 if check should count up the "best" as any concept NOT assigned a 0 or 1 if check should count up the "best" as any concept that IS assigned a 1
 #' @return table with column `include_new` to indicate whether concept should be counted as a "best" concept for the given check_name
-bmc_assign <- function(bmc_output,
+bmc_assign_old <- function(bmc_output,
                        conceptset=load_codeset('bmc_conceptset', col_types='cci', indexes=list('check_name'))){
   # if check_name+include indicates ones that should not be counted as "best", assign count_best=0
   # if check_name+include indicates ones that should be counted as "best", assign count_best=1
@@ -514,7 +567,7 @@ bmc_assign <- function(bmc_output,
     ungroup()
 
   bmc_w_best_overall <- bmc_w_best%>%
-    group_by(concept, check_type, database_version, check_name, check_desc, check_name_app,
+    group_by(concept, check_type, database_version, check_name, check_desc, #check_name_app,
              check_desc_short,
              count_best, include, include_new)%>%
     summarise(concept_rows=sum(concept_rows),
@@ -529,10 +582,32 @@ bmc_assign <- function(bmc_output,
 
 }
 
+bmc_assign <- function(bmc_output,
+                           conceptset=load_codeset('bmc_conceptset', col_types='cci', indexes=list('check_name'))){
+  # if check_name+include indicates ones that should not be counted as "best", assign count_best=0
+  # if check_name+include indicates ones that should be counted as "best", assign count_best=1
+  best_designation <- conceptset %>%
+    filter(!is.na(include))%>%
+    select(check_name, include)%>%
+    distinct()%>%
+    rename(count_best=include) # probably can remove this in the future if the concept set only has ones we want to count/not count
+
+  bmc_w_best <- bmc_output %>%
+    inner_join(best_designation, by = 'check_name')%>%
+    left_join(conceptset, by=c('check_name', 'concept')) %>%
+    mutate(include_new=case_when(is.na(include)&count_best==0L~1L, # insert opposite of what's already there for the ones that weren't in the set as either "best" or "not best"
+                                 is.na(include)&count_best==1L~0L,
+                                 !is.na(include)~include)) %>%
+    collect()
+
+  return(bmc_w_best)
+
+}
+
 #' Function to compute proportion of "best" based on output from bmc check
 #' @param bmc_output_pp table output from the bmc_assign function, which has all the columns output from the bmc check + an indicator column for whether the concept should be in the "best" category
 #' @return table with the cols: site, check_type, database_version, check_name, check_desc, check_desc_short, count_best, include, total_rows, total_pts, best_row_prop, best_pts_prop
-bmc_rollup <- function(bmc_output_pp){
+bmc_rollup_old <- function(bmc_output_pp){
   bmc_output_pp %>%
     group_by(across(c(site, check_type, database_version, starts_with("check_name"), check_desc, check_desc_short, count_best, include_new, total_rows, total_pts, starts_with("threshold"))))%>%
     summarise(best_rows=sum(concept_rows),
@@ -543,3 +618,64 @@ bmc_rollup <- function(bmc_output_pp){
 
 }
 
+#' Function to compute proportion of "best" based on output from bmc check
+#' @param bmc_output_pp table output from the bmc_assign function, which has all the columns output from the bmc check + an indicator column for whether the concept should be in the "best" category
+#' @return table with the cols: site, check_type, database_version, check_name, check_desc, check_desc_short, count_best, include, total_rows, total_pts, best_row_prop, best_pts_prop
+bmc_rollup <- function(bmc_output_pp,
+                           check_domains=read_codeset('check_domains', col_types='ccccc')){
+  # find proportions of best mapped for each site
+  bmc_sites <- bmc_output_pp %>%
+    #filter(include_new==1L)%>%
+    group_by(across(c(site, include_new, check_type, database_version, starts_with("check_name"), check_desc, check_desc_short, total_rows, starts_with("threshold"))))%>%
+    summarise(best_rows=sum(concept_rows)) %>%
+    ungroup()%>%
+    mutate(best_row_prop=best_rows/total_rows)
+
+  # add up site counts to get overall proportions
+  bmc_overall <- bmc_sites %>%
+    filter(include_new==1L)%>%
+    group_by(check_type, database_version, check_name, check_desc, check_desc_short)%>%
+    summarise(best_rows=sum(best_rows),
+              total_rows=sum(total_rows))%>%
+    ungroup()%>%
+    mutate(best_row_prop=best_rows/total_rows,
+           site='total')
+
+  # finding instances where no best mapped rows in a table
+  sites <- bmc_sites %>% distinct(site)
+  check_domains <- bmc_sites %>% distinct(check_type, check_name, check_desc, check_desc_short)
+  sites_and_checks <- sites %>% cross_join(check_domains)
+
+  site_no_bmc <- sites_and_checks%>%
+    anti_join(bmc_sites, by = c('site', 'check_name'))%>%
+    mutate(best_rows=0,
+           best_row_prop=0,
+           database_version=config('current_version'),
+           include_new=1L)
+
+
+  bind_rows(bmc_sites, bmc_overall)%>%
+    bind_rows(., site_no_bmc)%>%
+    mutate(check_name_app=paste0(check_name, "_rows"))
+
+
+}
+
+add_fot_ratios<-function(fot_lib_output,
+                         fot_map,
+                         denom_mult){
+  fot_input_tbl<-fot_lib_output %>%
+    mutate(row_ratio=case_when(row_visits==0~0,
+                               TRUE~row_cts/(row_visits*denom_mult)))%>%collect()
+
+  fot_input_tbl_allsite<-fot_input_tbl%>%
+    group_by(check_type, check_name, check_desc, database_version, month_end) %>%
+    summarise(row_ratio=median(row_ratio, na.rm=TRUE))%>%
+    ungroup()%>%
+    mutate(site='allsite_median')
+
+  bind_rows(fot_input_tbl,
+            fot_input_tbl_allsite)%>%
+    left_join(fot_map, by = 'check_name')
+
+}

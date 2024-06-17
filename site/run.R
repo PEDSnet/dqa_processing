@@ -117,16 +117,14 @@ config('retain_intermediates', NA)
 #' during processing of the request.
 #' If it is `NA`, the default value from site_info.R is used.
 #' @md
-config('results_schema', 'dqa_rox')
+config('results_schema', 'dqa_rox_dev')
 
 
 #' when processing a new site
 #' set new_site_pp to TRUE if adding a new site to the results, FALSE if running against all sites
 #' set results_schema_other to (string) name of schema containing additional site's data (only required if new_site_pp=TRUE)
-#' set append_to_existing to TRUE if new_site_pp is TRUE
 config('new_site_pp',FALSE)
 config('results_schema_other', NA)
-#config('append_to_existing', FALSE)
 
 #################################################################
 #
@@ -141,8 +139,8 @@ config('results_schema_other', NA)
 #' more readable result.  Keep the tag short, given Oracle limits on
 #' table name length.
 #' @md
-config('results_name_tag', '_op_1510')
-config('local_name_tag', '_op_1291')
+config('results_name_tag', NA)
+config('local_name_tag', '_op_1510')
 
 #' Execution mode
 #'
@@ -154,8 +152,8 @@ config('local_name_tag', '_op_1291')
 #' @md
 config('execution_mode', 'development')
 #' current_version should match the most recent db version
-config('current_version','v51')
-config('previous_version','v50')
+config('current_version','v54')
+config('previous_version','v53')
 #' Request-specific debug output for database operations
 #'
 #' This Boolean value specifies whether the query log should include

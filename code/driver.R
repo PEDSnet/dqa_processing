@@ -90,103 +90,82 @@ suppressPackageStartupMessages(library(methods))
 
   rslt <- list()
 
-  thresholds <- load_codeset('threshold_limits','ccdc',
+  message('Determining thresholds')
+  thresholds <- load_codeset('threshold_limits','ccdcc',
                              indexes=list('check_name'))
   copy_to_new(df=thresholds,
               name='thresholds_pedsnet_standard',
               temporary=FALSE)
 
-  redcap_prev <- .qual_tbl(name='dqa_issues_redcap_op_1510',
+  message('Finding previous thresholds')
+  redcap_prev <- .qual_tbl(name='dqa_issues_redcap',
                            schema='dqa_rox',
                            db=config('db_src_prev'))
+  # neither of the changed names are in here so don't need to update
+  thresholds_prev <- .qual_tbl(name='thresholds',
+                               schema='dqa_rox',
+                               db=config('db_src_prev'))
+  ## This table will exist in schema moving forward, but first introduced to schema in v52
+  thresholds_history <- .qual_tbl(name='thresholds_history',
+                                  schema='dqa_rox',
+                                  db=config('db_src_prev'))
+
+  message('Assigning thresholds for current cycle')
   thresholds_this_version <-
     compute_new_thresholds(redcap_tbl=redcap_prev,
-                           previous_thresholds=results_tbl_other('thresholds'))
+                           previous_thresholds=thresholds_prev,
+                           threshold_tbl=thresholds)
 
 
   copy_to_new(df=thresholds_this_version,
              name='thresholds',
              temporary = FALSE)
 
-  if(config('new_site_pp')) {
-
-    thresholds_tbls <- create_thresholds_full(schema_name_input=config('results_schema_other'),
-                                         append_tbl=TRUE,#config('append_to_existing'),
-                                         db=config('db_src'))
-
-    dq_names <- pull_dqa_table_names(schema_name = config('results_schema_other'))
-    dq_names_vector <- dq_names[['table']]
-
-    tbl_names <-
-      config('db_src') %>%
-      DBI::dbListObjects(DBI::Id(schema= config('results_schema_other'))) %>%
-      dplyr::pull(table) %>%
-      purrr::map(~slot(.x, 'name')) %>%
-      dplyr::bind_rows() %>%
-      # select(! matches('*_pp_*'))
-      filter(! str_detect(table,'pp')) %>%
-      #filter(str_detect(table,'output|violations')) %>%
-      #filter(! str_detect(table, 'fot')) %>%
-      filter(! str_detect(table, 'thrshld')) %>%
-      filter(! str_detect(table, 'old'))
-
-    tbl_names_short <-
-      tbl_names %>%
-      mutate_all(~gsub(paste0(config('results_name_tag')),'',.))
-
-    tbl_names_short_vector <- tbl_names_short[['table']]
-
-    differences <- setdiff(tbl_names_short_vector,dq_names_vector)
-
-    for(i in differences) {
-
-      output <- create_combined_data(i)
-
-      output
-    }
-
-  } else {
-    thresholds_tbls <- create_thresholds_full(schema_name_input=config('results_schema'),
-                                         append_tbl=FALSE)
-    output_list_to_db(thresholds_tbls,
-                      append=FALSE)
-  }
-
-
-
-
-  # rslt$dqa_tbl_names <- pull_dqa_table_names()
-  # rslt$dqa_tbls <- pull_dqa_tables(rslt$dqa_tbl_names)
-  # rslt$check_names <- get_check_names(rslt$dqa_tbl_names)
-  # rslt$thresholds <- set_broad_thresholds(rslt$check_names)
-  # thresholds_attached <- attach_thresholds(tbls_all=rslt$dqa_tbls,
-  #                                          thresholds=rslt$thresholds)
-  #  output_list_to_db(thresholds_attached,
-  #                    append=FALSE)
-
+  message('Creating table to track threshold versions')
+  ## Introduced the first time in v52, but will want to reference previous thresholds moving forward
+  thresholds_history_new <- bind_rows(thresholds_this_version,
+                                      thresholds_history%>%collect())
+  # thresholds_history_new <- thresholds_this_version
+  output_tbl(thresholds_history_new,
+             name='thresholds_history')
 
   message('Changes between data cycles processing')
   rslt$dc_preprocess <- dc_preprocess(results='dc_output')
+
   copy_to_new(df=rslt$dc_preprocess,
               name='dc_output_pp',
               temporary = FALSE)
 
   message('Value set and vocabulary violations processing')
-  rslt$vc_vs_violations_preprocess <- vc_vs_violations_preprocess(results='vc_vs_violations')
-  copy_to_new(df=rslt$vc_vs_violations_preprocess,
+  # by vocabulary_id
+  rslt$vc_vs_output_preprocess <- vc_vs_violations_preprocess(results='vc_vs_violations')
+
+  copy_to_new(df=rslt$vc_vs_output_preprocess,
+              name='vc_vs_output_pp',
+              temporary = FALSE)
+  # by check_name_app
+  rslt$vc_vs_violations_pp <- vc_vs_rollup(pp_output = rslt$vc_vs_output_preprocess)
+  copy_to_new(df=rslt$vc_vs_violations_pp,
               name='vc_vs_violations_pp',
+              temporary=FALSE)
+
+  message('Unmapped concepts processing')
+  rslt$uc_preprocess <- uc_process(results='uc_output')
+  copy_to_new(df=rslt$uc_preprocess,
+              name='uc_output_pp',
               temporary = FALSE)
 
-  message('Unmapped concepts by year processing')
   rslt$uc_by_year_preprocess <- uc_by_year_preprocess(results='uc_by_year')
   copy_to_new(df=rslt$uc_by_year_preprocess,
               name='uc_by_year_pp',
               temporary = FALSE)
+  rslt$uc_grpd_process <- results_tbl('uc_grpd')
+  copy_to_new(df=rslt$uc_grpd_process,
+              name='uc_grpd_pp',
+              temporary=FALSE)
 
   message('Missing field: visit id processing')
-  rslt$mf_visitid_preprocess <- mf_visitid_preprocess(results='mf_visitid_output',
-                                                      results_dc=results_tbl('dc_output'),
-                                                      db_version=config('current_version'))
+  rslt$mf_visitid_preprocess <- mf_visitid_preprocess(results='mf_visitid_output')
   copy_to_new(df=rslt$mf_visitid_preprocess,
               name='mf_visitid_pp',
               temporary = FALSE)
@@ -207,10 +186,16 @@ suppressPackageStartupMessages(library(methods))
   fot_list <- fot_check('row_cts',tblx=rslt$input_tbl)
   output_list_to_db(fot_list)
 
-  rslt$fot_output_distance <- check_fot_all_dist(fot_list$fot_heuristic)
+  rslt$fot_output_distance <- check_fot_all_dist(fot_list$fot_heuristic_pp)
   output_tbl(rslt$fot_output_distance,
-             'fot_output_distance',
+             'fot_output_distance_pp',
              indexes=list('check_name'))
+
+  rslt$fot_output_ratios<-add_fot_ratios(fot_lib_output=results_tbl('fot_output'),
+                                         fot_map=rslt$fot_map,
+                                         denom_mult=10000L)
+  output_tbl(rslt$fot_output_ratios,
+             name='fot_output_mnth_ratio_pp')
 
   message('Best mapped concepts processing')
   # sending the set of best/not best mapped concepts to the schema
@@ -221,7 +206,8 @@ suppressPackageStartupMessages(library(methods))
               name='bmc_conceptset',
               temporary = FALSE)
   # row-level assignment
-  rslt$bmc_concepts <- bmc_assign(bmc_output=results_tbl('bmc_gen_output'))
+  rslt$bmc_concepts <-bmc_assign(bmc_output=results_tbl('bmc_gen_output'),
+                                     conceptset=load_codeset('bmc_conceptset', col_types='cci', indexes=list('check_name')))
 
   output_tbl(rslt$bmc_concepts,
                 name='bmc_gen_output_concepts_pp')
@@ -243,36 +229,32 @@ suppressPackageStartupMessages(library(methods))
   output_tbl(rslt$dcon_output_pp,
              name='dcon_output_pp')
 
+  message("ECP processing")
+  # NOTE this might just be temporary, just making sure it is accounted for and matches expectations for dashboard
+  rslt$ecp_process <- results_tbl('ecp_output') %>%
+    mutate(check_name_app=paste0(check_name, '_person'))
+  copy_to_new(df=rslt$ecp_process,
+              name='ecp_output_pp',
+              temporary=FALSE)
+
 
   message('Create threshold table')
-  threshold_list <- create_threshold_tbl_post()
-  rslt$threshold_list <- reduce(.x=threshold_list,
-                                .f=dplyr::union) %>%
-    mutate(version=config('current_version')) %>%
-    group_by(site,threshold,threshold_operator,
-             check_name,check_name_app,version) %>%
-    summarise(value_output=sum(value_output)) %>%
-    ungroup()
+  # NEW!
+  # change this to check_apps when all of the tables have been added
+  # need to test whether violations are flagged appropriately based on col_name when thresholds are NOT in the pp tables
+  rslt$thresholds_applied <- apply_thresholds(check_app_tbl=read_codeset('check_apps', col_types = 'cccccc'),
+                                              threshold_tbl = results_tbl('thresholds'))
 
 
-  output_tbl(rslt$threshold_list,
-             'threshold_tbl_output')
+  output_list_to_db(rslt$thresholds_applied,
+                    append=FALSE)
+  rslt$threshold_violations <- reduce(.x=rslt$thresholds_applied,
+                                      .f=dplyr::bind_rows)%>%
+    filter(violation&!rc_stop_flag)
 
-  rslt$threshold_list_violations <-
-    rslt$threshold_list %>%
-    mutate(violation=case_when(threshold_operator == 'gt' & value_output > threshold ~ 1,
-                               threshold_operator == 'lt' & value_output < threshold ~ 1,
-                               TRUE ~ 0)) %>% filter(violation==1)
-
-  output_tbl(rslt$threshold_list_violations,
-             'threshold_tbl_violations')
-
-  # rslt$threshold_list_wide <-
-  #   rslt$threshold_list %>%
-  #   #select(check_name_app,value_output) %>%
-  #   pivot_wider(id_cols=site,
-  #               names_from = check_name_app,
-  #                values_from = value_output)
+  copy_to_new(df=rslt$threshold_violations,
+              name='threshold_tbl_violations',
+              temporary=FALSE)
 
   message('Generate and add masked site identifiers to all tables with "site" column')
   rslt$pp_tbl_names <- pull_site_tables()

@@ -180,6 +180,7 @@ set_broad_thresholds <- function(check_tbl,
 #' integrates redcap output with thresholds
 #'
 #' @param redcap_tbl the redcap tbl with new thresholds
+#' @param previous_thresholds tbl with (site-specific) thresholds from previous data cycle
 #' @param threshold_tbl the tbl with the PEDSnet thresholds; should be in `specs`
 #' @param site_name_tbl a csv with all PEDSnet site names; should be in `specs`
 #'
@@ -187,84 +188,114 @@ set_broad_thresholds <- function(check_tbl,
 #' `threshold`, `threshold_operator`, `application`, `site`, `oldthreshold`, `newthreshold`
 #'
 #' The `oldthreshold` column provides the previous threshold, and the `newthreshold`
-#' column shows the new threshold.
+#' column shows the new threshold. The `rc_stop_flag` column indicates that
+#' the threshold can be applied, but the issue should not be raised with the site (TRUE if should stop flagging)
 #'
 
 compute_new_thresholds <- function(redcap_tbl,
                                    previous_thresholds,
-                                   threshold_tbl=read_codeset('threshold_limits','ccdc'),
+                                   threshold_tbl=read_codeset('threshold_limits','ccdcc'),
                                    site_name_tbl=read_codeset('site_names',col_types = 'c')) {
 
-  # all_sites <-
-  #   site_name_tbl %>% copy_to_new(df=.)
-
+  # apply standard thresholds to each of the sites
   thresholds_sites <-
     merge(threshold_tbl,site_name_tbl) %>% tibble::as_tibble(.) %>%
-    unite('check_name_app',c(check_name,application),
-          sep='_',remove=FALSE)
-
-  thresholds_sites_db <-
-   copy_to_new(df=thresholds_sites)
+     unite('check_name_app',c(check_name,application),
+           sep='_',remove=FALSE) %>%
+    rename(threshold_pedsnet_default=threshold)
 
   version_num <- config('previous_version')
   version_num_current <- config('current_version')
 
+  # format previous thresholds
   thresholds_previous <-
     previous_thresholds %>%
-    rename(threshold_previous = newthreshold) %>%
+    select(-c(threshold_previous)) %>%
+    rename(threshold_previous = threshold) %>%
     select(check_type,
            check_name_app,
            check_name,
            threshold_previous,
+           ### below is new
+           threshold_version_global,
            application,
            site,
-           threshold_version)
+           threshold_version) #%>%
+    # NOTE: this is here because of weird formatting on old thresholds, hopefully would be resolved in future versions
+   # mutate(threshold_previous=round(threshold_previous,2))
 
+  # bring in the prior redcap data and replace thresholds if they were adjusted in prior cycle
   thresholds_previous_merged <-
-    thresholds_sites_db %>%
+    thresholds_sites %>%
     left_join(
       thresholds_previous,
       copy=TRUE
-    ) %>%
-    mutate(
-      threshold_version_global = case_when(abs(threshold-threshold_previous) > 0.01 ~ version_num,
-                                           TRUE ~ 'standard'),
-      threshold=case_when(abs(threshold-threshold_previous) > 0.01 ~ threshold_previous,
-                          TRUE ~ threshold)
-    )
+    ) %>% distinct() %>%
+    mutate(threshold_version_global =
+             case_when(is.na(threshold_version_global) ~ 'standard',
+                       TRUE ~ threshold_version_global)) %>%
+    mutate(threshold_version =
+             case_when(is.na(threshold_version) ~ version_num_current,
+                       TRUE ~ threshold_version))
+            # threshold_previous =
+            #   case_when(is.na(threshold_previous) ~ threshold,
+            #             TRUE ~ threshold_previous))
 
 
+  #' TO DISCUSS WITH KIM:
+  #' - Should we call `threshold` something else?
+  #'    #### ---- DECISION:
+  #'                1) Change column name of `threshold` (in current version) to `default_pedsnet_thresholds` (or something similar)
+  #'                # -> made this `threshold_pedsnet_default`
+  #'                2) Only keep one of newthreshold (don't duplicate with `threshold_previous`) so that the only columns
+  #'                  that we maintain are: 1) default pedsnet thresholds, 2) threshold of previous cycle, 3) new threshold for current data cycle
+  #' - What to do with the `finalflag` column when the value is `Stop flagging`
+  #'    #### ---- DECISION:
+  #'              Need to look at previous threshold table as well as redcap table, if we are carrying over from previous data cycles, it will not be in redcap table
+  #'              Change label of `finalflag` to reflect more accurately that it represents a column for permission to flag
+  #' - How to preserve a running copy of thresholds, and redcap responses?
+  #'    #### ---- DECISION:
+  #'              Do a union of the previous thresholds with current and output to database
+  #'
   redcap_new <-
     redcap_tbl %>%
-    mutate(newthreshold=
-             case_when(is.na(newthreshold) ~ threshold,
-                       TRUE ~ newthreshold)) %>%
-    mutate(newthreshold=as.double(newthreshold),
-           threshold=as.double(threshold)) %>%
+    mutate(threshold_rc=
+             case_when(is.na(newthreshold) ~ as.numeric(threshold),
+                       TRUE ~ as.numeric(newthreshold))) %>%
     filter(version==version_num) %>%
     select(site,
            check_name,
            check_name_app,
-           threshold,
-           newthreshold) %>%
-    rename(oldthreshold=threshold)
+           threshold_rc,
+           finalflag)
 
   new_thresholds <-
-    thresholds_sites_merged %>%
+    thresholds_previous_merged %>%
     left_join(
       redcap_new,
       by=c('site','check_name','check_name_app'),
-      copy=TRUE
-    ) %>% mutate(threshold_version=version_num) %>%
-    mutate(oldthreshold=
-             case_when(is.na(oldthreshold) ~ threshold,
-                       TRUE ~ oldthreshold)) %>%
-    mutate(threshold_version_global=
-             case_when(!is.na(newthreshold) & abs(newthreshold-oldthreshold) > 0.01 ~ version_num_current,
-                       TRUE ~ threshold_version_global)) %>%
-    mutate(newthreshold=
-             case_when(is.na(newthreshold) ~ oldthreshold,
-                       TRUE ~ newthreshold))
+      copy=TRUE) %>%
+    # if there was a threshold in redcap (could be newly assigned or not, use that)
+    # if there was a threshold in the previous version but not in redcap (e.g. wasn't a violation), use that
+    mutate(threshold_previous=
+             case_when(is.na(threshold_rc) ~ threshold_previous,
+                       TRUE ~ threshold_rc)) %>%
+    mutate(threshold=case_when(!is.na(threshold_previous)~threshold_previous,
+                               TRUE~threshold_pedsnet_default))%>%
+    select(-threshold_rc)%>%
+   # mutate(threshold_version_global=
+   #          case_when(!is.na(newthreshold) & abs(newthreshold-oldthreshold) > 0.01 ~ version_num_current,
+   #                    TRUE ~ threshold_version_global)) %>%
+   # mutate(newthreshold=
+   #          case_when(is.na(newthreshold) ~ oldthreshold,
+    #                   TRUE ~ newthreshold)) %>%
+    mutate(threshold_version = version_num_current) %>%
+    # PROBABLY REMOVE THIS, but for now trying to just have one row per threshold (up to here there could be more than one newthreshold from the previous redcap)
+    group_by(site, check_name_app)%>%filter(threshold==max(threshold))%>%ungroup()%>%distinct()%>%
+    mutate(rc_stop_flag=case_when(finalflag=='Stop flagging'~TRUE,
+                                  TRUE~FALSE))%>%
+    select(-finalflag)
+
 
 }
 
@@ -437,7 +468,8 @@ pull_dqa_table_names_post <- function(schema_name=config('results_schema')) {
                                     append_tbl,
                                     threshold_input=results_tbl('thresholds'),
                                     #thresholds=results_tbl('thresholds'),
-                                    db_input=config('db_src')) {
+                                    db_input=config('db_src'),
+                                    threshold_apps=read_codeset('check_apps', col_types = 'cccc')) {
 
 
    otpt <- list()
@@ -455,3 +487,62 @@ pull_dqa_table_names_post <- function(schema_name=config('results_schema')) {
 
  }
 
+ #' Function to apply thresholds to a list of post-processed tables
+ #' @param check_app_tbl table with (at least) the columns:
+ #'                        tbl_name_post: name of post-processed table as it exists in the results schema. This table should contain a `check_name_app` column by which it will be joined to the thresholds
+ #'                        col_filter: name of column to filter thresholding on (can be NULL)
+ #'                        col_filter_value: value in the `col_filter` field on which to filter results
+ #' @param threshold_tbl table with (at least) the columns:
+ #'                        site
+ #'                        check_name_app
+ #'                        threshold
+ #'                        threshold_operator
+ #' @return named list (where names are the names of the post-processed tables) containing the post-processed tables with the thresholds attached
+ apply_thresholds <- function(check_app_tbl,
+                              threshold_tbl){
+   threshold_tbl_limited <- threshold_tbl %>%
+     select(site, check_name, check_name_app, threshold, threshold_operator, threshold_version, rc_stop_flag)
+
+   tbls_to_apply<-check_app_tbl %>%
+     select(tbl_name_post) %>%
+     pull()
+
+   tbls_all <- list()
+
+   for(i in 1:length(tbls_to_apply)) {
+
+     string_name<-tbls_to_apply[i]
+     app_name<-check_app_tbl$check_app[i]
+     # find the output pp table
+     if(config('new_site_pp')) {
+       tbl_dq_post <-
+         results_tbl_other(string_name)
+     }else{
+       tbl_dq_post <- results_tbl(string_name)
+     }
+
+     # apply filter if specified
+     if(!is.na(check_app_tbl$col_filter[i])){
+       filt_col<-check_app_tbl$col_filter[i]
+       filt_string<-check_app_tbl$col_filter_value[i]
+       tbl_dq_post<-tbl_dq_post%>%filter(as.character(!!sym(filt_col))==filt_string)
+       # select(-!!sym(filt_col)) # could keep this in and it works, but not sure if needed
+     }else{tbl_dq_post<-tbl_dq_post}
+
+     # join final table to the thresholds
+     tbl_dq <- tbl_dq_post %>%
+       left_join(threshold_tbl_limited, by = c('site', 'check_name_app', 'check_name'), copy=TRUE)%>%
+       rename(value_output:=!!sym(check_app_tbl$col_name[i]))%>%
+       mutate(violation=case_when(threshold_operator=='gt'&
+                                    value_output>threshold~TRUE,
+                                  threshold_operator=='lt'&
+                                    value_output<threshold~TRUE,
+                                          TRUE~FALSE))%>%
+       select(site, threshold, threshold_operator, check_name, check_name_app, threshold_version, value_output, violation, rc_stop_flag)%>%
+       collect()
+
+
+     tbls_all[[paste0("thr_",string_name,"_",app_name)]] <- tbl_dq
+   }
+   tbls_all
+ }
