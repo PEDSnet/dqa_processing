@@ -221,8 +221,6 @@ compute_new_thresholds <- function(redcap_tbl,
            application,
            site,
            threshold_version) #%>%
-    # NOTE: this is here because of weird formatting on old thresholds, hopefully would be resolved in future versions
-   # mutate(threshold_previous=round(threshold_previous,2))
 
   # bring in the prior redcap data and replace thresholds if they were adjusted in prior cycle
   thresholds_previous_merged <-
@@ -237,26 +235,8 @@ compute_new_thresholds <- function(redcap_tbl,
     mutate(threshold_version =
              case_when(is.na(threshold_version) ~ version_num_current,
                        TRUE ~ threshold_version))
-            # threshold_previous =
-            #   case_when(is.na(threshold_previous) ~ threshold,
-            #             TRUE ~ threshold_previous))
 
 
-  #' TO DISCUSS WITH KIM:
-  #' - Should we call `threshold` something else?
-  #'    #### ---- DECISION:
-  #'                1) Change column name of `threshold` (in current version) to `default_pedsnet_thresholds` (or something similar)
-  #'                # -> made this `threshold_pedsnet_default`
-  #'                2) Only keep one of newthreshold (don't duplicate with `threshold_previous`) so that the only columns
-  #'                  that we maintain are: 1) default pedsnet thresholds, 2) threshold of previous cycle, 3) new threshold for current data cycle
-  #' - What to do with the `finalflag` column when the value is `Stop flagging`
-  #'    #### ---- DECISION:
-  #'              Need to look at previous threshold table as well as redcap table, if we are carrying over from previous data cycles, it will not be in redcap table
-  #'              Change label of `finalflag` to reflect more accurately that it represents a column for permission to flag
-  #' - How to preserve a running copy of thresholds, and redcap responses?
-  #'    #### ---- DECISION:
-  #'              Do a union of the previous thresholds with current and output to database
-  #'
   redcap_new <-
     redcap_tbl %>%
     mutate(threshold_rc=
@@ -283,12 +263,6 @@ compute_new_thresholds <- function(redcap_tbl,
     mutate(threshold=case_when(!is.na(threshold_previous)~threshold_previous,
                                TRUE~threshold_pedsnet_default))%>%
     select(-threshold_rc)%>%
-   # mutate(threshold_version_global=
-   #          case_when(!is.na(newthreshold) & abs(newthreshold-oldthreshold) > 0.01 ~ version_num_current,
-   #                    TRUE ~ threshold_version_global)) %>%
-   # mutate(newthreshold=
-   #          case_when(is.na(newthreshold) ~ oldthreshold,
-    #                   TRUE ~ newthreshold)) %>%
     mutate(threshold_version = version_num_current) %>%
     # PROBABLY REMOVE THIS, but for now trying to just have one row per threshold (up to here there could be more than one newthreshold from the previous redcap)
     group_by(site, check_name_app)%>%filter(threshold==max(threshold))%>%ungroup()%>%distinct()%>%

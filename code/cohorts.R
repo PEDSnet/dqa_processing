@@ -159,19 +159,6 @@ uc_process <- function(results){
 
 mf_visitid_preprocess <- function(results) {
 
-  # dc_merge <- results_dc %>%
-  #   filter(database_version == db_version)%>%
-  #   select(site, total_ct, domain)
-  # # compute total row counts for overall data
-  # dc_total <- dc_merge %>%
-  #   group_by(domain)%>%
-  #   summarise(total_ct=sum(total_ct))%>%
-  #   ungroup()%>%
-  #   mutate(site='total')
-  #
-  # dc_overall <- dc_merge %>%
-  #   dplyr::union_all(dc_total)
-
   test_mf <- results_tbl(results) %>%
     mutate(
       domain = case_when(

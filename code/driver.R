@@ -122,10 +122,9 @@ suppressPackageStartupMessages(library(methods))
              temporary = FALSE)
 
   message('Creating table to track threshold versions')
-  ## Introduced the first time in v52, but will want to reference previous thresholds moving forward
+
   thresholds_history_new <- bind_rows(thresholds_this_version,
                                       thresholds_history%>%collect())
-  # thresholds_history_new <- thresholds_this_version
   output_tbl(thresholds_history_new,
              name='thresholds_history')
 
@@ -217,11 +216,6 @@ suppressPackageStartupMessages(library(methods))
               name='bmc_gen_output_pp')
 
   message('Domain concordance processing')
-  # by year --> don't currently have overlap by year
-  # rslt$dcon_output_byyr_pp <- apply_dcon_pp(dcon_tbl=results_tbl('dcon_by_yr'),
-  #                                           byyr=TRUE)
-  # output_tbl(rslt$dcon_output_byyr_pp,
-  #            name='dcon_output_pp_byyr')
 
   # overall
   rslt$dcon_output_pp <- apply_dcon_pp(dcon_tbl=results_tbl('dcon_output'),
@@ -230,7 +224,6 @@ suppressPackageStartupMessages(library(methods))
              name='dcon_output_pp')
 
   message("ECP processing")
-  # NOTE this might just be temporary, just making sure it is accounted for and matches expectations for dashboard
   rslt$ecp_process <- results_tbl('ecp_output') %>%
     mutate(check_name_app=paste0(check_name, '_person'))
   copy_to_new(df=rslt$ecp_process,
@@ -239,9 +232,6 @@ suppressPackageStartupMessages(library(methods))
 
 
   message('Create threshold table')
-  # NEW!
-  # change this to check_apps when all of the tables have been added
-  # need to test whether violations are flagged appropriately based on col_name when thresholds are NOT in the pp tables
   rslt$thresholds_applied <- apply_thresholds(check_app_tbl=read_codeset('check_apps', col_types = 'cccccc'),
                                               threshold_tbl = results_tbl('thresholds'))
 
