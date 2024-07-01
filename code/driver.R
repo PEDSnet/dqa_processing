@@ -89,45 +89,6 @@ suppressPackageStartupMessages(library(methods))
           config('framework_version'))
 
   rslt <- list()
-
-  message('Determining thresholds')
-  thresholds <- load_codeset('threshold_limits','ccdcc',
-                             indexes=list('check_name'))
-  copy_to_new(df=thresholds,
-              name='thresholds_pedsnet_standard',
-              temporary=FALSE)
-
-  message('Finding previous thresholds')
-  redcap_prev <- .qual_tbl(name='dqa_issues_redcap',
-                           schema='dqa_rox',
-                           db=config('db_src_prev'))
-  # neither of the changed names are in here so don't need to update
-  thresholds_prev <- .qual_tbl(name='thresholds',
-                               schema='dqa_rox',
-                               db=config('db_src_prev'))
-  ## This table will exist in schema moving forward, but first introduced to schema in v52
-  thresholds_history <- .qual_tbl(name='thresholds_history',
-                                  schema='dqa_rox',
-                                  db=config('db_src_prev'))
-
-  message('Assigning thresholds for current cycle')
-  thresholds_this_version <-
-    compute_new_thresholds(redcap_tbl=redcap_prev,
-                           previous_thresholds=thresholds_prev,
-                           threshold_tbl=thresholds)
-
-
-  copy_to_new(df=thresholds_this_version,
-             name='thresholds',
-             temporary = FALSE)
-
-  message('Creating table to track threshold versions')
-
-  thresholds_history_new <- bind_rows(thresholds_this_version,
-                                      thresholds_history%>%collect())
-  output_tbl(thresholds_history_new,
-             name='thresholds_history')
-
   message('Changes between data cycles processing')
   rslt$dc_preprocess <- dc_preprocess(results='dc_output')
 
@@ -200,20 +161,43 @@ suppressPackageStartupMessages(library(methods))
   # sending the set of best/not best mapped concepts to the schema
   rslt$bmc_conceptset<-load_codeset('bmc_conceptset', col_types='cci', indexes=list('check_name')) %>%
     inner_join(select(results_tbl('bmc_gen_output'), check_name, check_desc)%>%distinct(),
-                      by = 'check_name')
+               by = 'check_name')
   copy_to_new(df=rslt$bmc_conceptset,
               name='bmc_conceptset',
               temporary = FALSE)
   # row-level assignment
   rslt$bmc_concepts <-bmc_assign(bmc_output=results_tbl('bmc_gen_output'),
-                                     conceptset=load_codeset('bmc_conceptset', col_types='cci', indexes=list('check_name')))
+                                 conceptset=load_codeset('bmc_conceptset', col_types='cci', indexes=list('check_name')))
 
   output_tbl(rslt$bmc_concepts,
-                name='bmc_gen_output_concepts_pp')
+             name='bmc_gen_output_concepts_pp')
   # computing proportions of best mapped per site/check
   rslt$bmc_pp <- bmc_rollup(rslt$bmc_concepts)
   output_tbl(rslt$bmc_pp,
-              name='bmc_gen_output_pp')
+             name='bmc_gen_output_pp')
+  ## for thresholds
+  rslt$bmc_anom<-compute_dist_anomalies(df_tbl=rslt$bmc_pp%>%filter(include_new==1L),
+                                        grp_vars=c('check_name', 'check_desc'),
+                                        var_col='best_row_prop')
+  rslt$bmc_anom_pp<-detect_outliers(df_tbl=rslt$bmc_anom,
+                                    tail_input = 'both',
+                                    p_input = 0.9,
+                                    column_analysis = 'best_row_prop',
+                                    column_eligible = 'analysis_eligible',
+                                    column_variable = 'check_name')
+  output_tbl(rslt$bmc_anom_pp,
+             name='bmc_anom_pp')
+  # determine this round's thresholds
+  rslt$bmc_thresh<-rslt$bmc_anom_pp%>%distinct(check_type, check_name, site,
+                                               lower_tail, upper_tail)%>%
+    pivot_longer(cols=c(lower_tail, upper_tail),
+                 names_to="threshold_operator",
+                 values_to="threshold",
+                 values_drop_na=TRUE)%>%
+    mutate(threshold_operator=case_when(threshold_operator=='lower_tail'~'lt',
+                                        threshold_operator=='upper_tail'~'gt'),
+           check_name_app=paste0(check_name, '_rows'),
+           application='rows')
 
   message('Domain concordance processing')
 
@@ -225,10 +209,76 @@ suppressPackageStartupMessages(library(methods))
 
   message("ECP processing")
   rslt$ecp_process <- results_tbl('ecp_output') %>%
-    mutate(check_name_app=paste0(check_name, '_person'))
-  copy_to_new(df=rslt$ecp_process,
+    mutate(check_name_app=paste0(check_name, '_person'))%>%
+    collect()
+
+  rslt$ecp_anom<-compute_dist_anomalies(df_tbl=rslt$ecp_process,
+                                        grp_vars=c('check_name'),
+                                        var_col='prop_with_concept')
+  rslt$ecp_anom_pp<-detect_outliers(df_tbl=rslt$ecp_anom,
+                                    tail_input = 'both',
+                                    p_input = 0.9,
+                                    column_analysis = 'prop_with_concept',
+                                    column_eligible = 'analysis_eligible',
+                                    column_variable = 'check_name')
+  # determine this round's thresholds
+  rslt$ecp_thresh<-rslt$ecp_anom_pp%>%distinct(check_type, check_name, site,
+                                               lower_tail, upper_tail)%>%
+    pivot_longer(cols=c(lower_tail, upper_tail),
+                 names_to="threshold_operator",
+                 values_to="threshold",
+                 values_drop_na=TRUE)%>%
+    mutate(threshold_operator=case_when(threshold_operator=='lower_tail'~'lt',
+                                        threshold_operator=='upper_tail'~'gt'),
+           check_name_app=paste0(check_name, '_person'),
+           application='person')
+  output_tbl(rslt$ecp_anom_pp,
+             name='ecp_anom_pp')
+
+  output_tbl(df=rslt$ecp_process,
               name='ecp_output_pp',
               temporary=FALSE)
+
+  message('Determining thresholds')
+  thresholds <- load_codeset('threshold_limits','ccdcc',
+                             indexes=list('check_name'))
+  copy_to_new(df=thresholds,
+              name='thresholds_pedsnet_standard',
+              temporary=FALSE)
+
+  message('Finding previous thresholds')
+  redcap_prev <- .qual_tbl(name='dqa_issues_redcap',
+                           schema='dqa_rox',
+                           db=config('db_src_prev'))
+  # neither of the changed names are in here so don't need to update
+  thresholds_prev <- .qual_tbl(name='thresholds',
+                               schema='dqa_rox',
+                               db=config('db_src_prev'))
+  ## This table will exist in schema moving forward, but first introduced to schema in v52
+  thresholds_history <- .qual_tbl(name='thresholds_history',
+                                  schema='dqa_rox',
+                                  db=config('db_src_prev'))
+
+  message('Assigning thresholds for current cycle')
+  thresholds_this_version <-
+    compute_new_thresholds(redcap_tbl=redcap_prev,
+                           previous_thresholds=thresholds_prev,
+                           threshold_tbl=thresholds,
+                           anomaly_tbl = bind_rows(rslt$bmc_thresh,
+                                                   rslt$ecp_thresh))
+
+
+  copy_to_new(df=thresholds_this_version,
+              name='thresholds',
+              temporary = FALSE)
+
+  message('Creating table to track threshold versions')
+
+  thresholds_history_new <- bind_rows(thresholds_this_version,
+                                      thresholds_history%>%collect())
+  output_tbl(thresholds_history_new,
+             name='thresholds_history')
+
 
 
   message('Create threshold table')

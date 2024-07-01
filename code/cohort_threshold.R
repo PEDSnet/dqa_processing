@@ -195,7 +195,8 @@ set_broad_thresholds <- function(check_tbl,
 compute_new_thresholds <- function(redcap_tbl,
                                    previous_thresholds,
                                    threshold_tbl=read_codeset('threshold_limits','ccdcc'),
-                                   site_name_tbl=read_codeset('site_names',col_types = 'c')) {
+                                   site_name_tbl=read_codeset('site_names',col_types = 'c'),
+                                   anomaly_tbl) {
 
   # apply standard thresholds to each of the sites
   thresholds_sites <-
@@ -216,11 +217,15 @@ compute_new_thresholds <- function(redcap_tbl,
            check_name_app,
            check_name,
            threshold_previous,
-           ### below is new
            threshold_version_global,
            application,
            site,
-           threshold_version) #%>%
+           threshold_version)
+
+  # thresholds from anomaly detection
+  anomaly_thresholds<-anomaly_tbl%>%
+    mutate(threshold_version=version_num_current,
+           threshold_version_global=version_num_current)
 
   # bring in the prior redcap data and replace thresholds if they were adjusted in prior cycle
   thresholds_previous_merged <-
@@ -234,7 +239,8 @@ compute_new_thresholds <- function(redcap_tbl,
                        TRUE ~ threshold_version_global)) %>%
     mutate(threshold_version =
              case_when(is.na(threshold_version) ~ version_num_current,
-                       TRUE ~ threshold_version))
+                       TRUE ~ threshold_version)) %>%
+    bind_rows(anomaly_thresholds)
 
 
   redcap_new <-
@@ -248,7 +254,9 @@ compute_new_thresholds <- function(redcap_tbl,
            check_name_app,
            threshold_rc,
            finalflag)
-
+  #
+  #
+  #
   new_thresholds <-
     thresholds_previous_merged %>%
     left_join(
@@ -260,7 +268,8 @@ compute_new_thresholds <- function(redcap_tbl,
     mutate(threshold_previous=
              case_when(is.na(threshold_rc) ~ threshold_previous,
                        TRUE ~ threshold_rc)) %>%
-    mutate(threshold=case_when(!is.na(threshold_previous)~threshold_previous,
+    mutate(threshold=case_when(!is.na(threshold)~threshold,
+                               !is.na(threshold_previous)~threshold_previous,
                                TRUE~threshold_pedsnet_default))%>%
     select(-threshold_rc)%>%
     mutate(threshold_version = version_num_current) %>%
