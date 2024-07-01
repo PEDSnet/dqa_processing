@@ -508,13 +508,25 @@ apply_dcon_pp <- function(dcon_tbl,
                 names_from=cohort)%>%
     mutate(tot_pats=cohort_1+cohort_2-combined,
            cohort_1_only=cohort_1-combined,
-           cohort_2_only=cohort_2-combined)%>%
-    pivot_longer(cols=c(cohort_1_only, cohort_2_only, combined),
+           cohort_2_only=cohort_2-combined,
+           cohort_1_in_2=combined,
+           cohort_2_in_1=combined,
+           # duplicative, but keeping around for proportion of 2 in 1 and vice versa
+           cohort_1_denom=cohort_1-combined,
+           cohort_2_denom=cohort_2-combined)%>%
+    pivot_longer(cols=c(cohort_1_only, cohort_2_only, combined, cohort_2_in_1, cohort_1_in_2, cohort_1_denom, cohort_2_denom),
                  names_to="cohort",
                  values_to="value")%>%
-    mutate(prop=value/tot_pats)%>%
-    select(-c(cohort_1, cohort_2))%>%
-    distinct()
+     mutate(prop=case_when(cohort%in%c('cohort_1_only', 'cohort_2_only', 'combined')~value/tot_pats,
+                           cohort=='cohort_1_in_2'~value/cohort_2,
+                           cohort=='cohort_2_in_1'~value/cohort_1,
+                           cohort=='cohort_1_denom'~value/cohort_1,
+                           cohort=='cohort_2_denom'~value/cohort_2))%>%
+    # in case one of the cohort denominators is 0
+    mutate(prop=case_when(is.na(prop)~0,
+                          TRUE~prop))
+    # select(-c(cohort_1, cohort_2))%>%
+    # distinct()
   }
   return(dcon_tbl_pp%>%
            mutate(check_name_app=paste0(check_name,"_concordance")))
