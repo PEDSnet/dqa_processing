@@ -56,8 +56,6 @@ mf_visitid,mf_visitid_dp,0.1,gt,rows
 mf_visitid,mf_visitid_ml,0.1,gt,rows
 mf_visitid,mf_visitid_dr,0.1,gt,rows
 mf_visitid,mf_visitid_co,0.05,gt,rows
-bmc,bmc_rxnorm_di,0.8,lt,rows
-bmc,bmc_rxnorm_dp,0.8,lt,rows
 pf,pf_edvisits_co,0.6,lt,visits
 pf,pf_edvisits_cs_spec,0.4,lt,visits
 pf,pf_edvisits_dr,0.5,lt,visits
@@ -154,12 +152,6 @@ vs,vs_pd_eth_cid,0,gt,rows
 vs,vs_pd_race_cid,0,gt,rows
 vs,vs_adt_tcid,0,gt,rows
 vs,vs_im_route_cid,0.2,gt,rows
-bmc,bmc_adt_service,0.85,lt,rows
-bmc,bmc_csvo_spec,0.7,lt,rows
-bmc,bmc_ethnicity,0.8,lt,rows
-bmc,bmc_pvvo_spec,0.8,lt,rows
-bmc,bmc_race,0.8,lt,rows
-bmc,bmc_vo_spec,0.8,lt,rows
 pf,pf_lipvisits_co,0.85,lt,visits
 pf,pf_lipvisits_cs_spec,0,lt,visits
 pf,pf_lipvisits_dr,0.8,lt,visits
@@ -171,12 +163,3 @@ pf,pf_lipvisits_prdr,0.8,lt,visits
 pf,pf_lipvisits_prdrml,0.75,lt,visits
 pf,pf_lipvisits_pv_spec,0.3,lt,visits
 pf,pf_lipvisits_vp,0.5,lt,visits
-ecp,ecp_hemoglobin,0.5,lt,person
-ecp,ecp_platelet_count,0.5,lt,person
-ecp,ecp_anc,0.5,lt,person
-ecp,ecp_scr,0.08,lt,person
-ecp,ecp_sodium,0.4,lt,person
-ecp,ecp_alanine_transaminase,0.4,lt,person
-ecp,ecp_urine_protein_qual,0.15,lt,person
-ecp,ecp_cholesterol,0.1,lt,person
-ecp,ecp_rapid_strep,0.08,lt,person

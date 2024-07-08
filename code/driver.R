@@ -197,10 +197,10 @@ suppressPackageStartupMessages(library(methods))
     mutate(threshold_operator=case_when(threshold_operator=='lower_tail'~'lt',
                                         threshold_operator=='upper_tail'~'gt'),
            check_name_app=paste0(check_name, '_rows'),
-           application='rows')
+           application='rows')%>%
+    filter(threshold_operator=='lt')
 
   message('Domain concordance processing')
-
   # overall
   rslt$dcon_output_pp <- apply_dcon_pp(dcon_tbl=results_tbl('dcon_output'),
                                             byyr=FALSE)
@@ -211,7 +211,7 @@ suppressPackageStartupMessages(library(methods))
   rslt$ecp_process <- results_tbl('ecp_output') %>%
     mutate(check_name_app=paste0(check_name, '_person'))%>%
     collect()
-
+  # flag anomalies
   rslt$ecp_anom<-compute_dist_anomalies(df_tbl=rslt$ecp_process,
                                         grp_vars=c('check_name'),
                                         var_col='prop_with_concept')
@@ -231,13 +231,10 @@ suppressPackageStartupMessages(library(methods))
     mutate(threshold_operator=case_when(threshold_operator=='lower_tail'~'lt',
                                         threshold_operator=='upper_tail'~'gt'),
            check_name_app=paste0(check_name, '_person'),
-           application='person')
+           application='person')%>%
+    filter(threshold_operator=='lt')
   output_tbl(rslt$ecp_anom_pp,
-             name='ecp_anom_pp')
-
-  output_tbl(df=rslt$ecp_process,
-              name='ecp_output_pp',
-              temporary=FALSE)
+             name='ecp_output_pp')
 
   message('Determining thresholds')
   thresholds <- load_codeset('threshold_limits','ccdcc',
