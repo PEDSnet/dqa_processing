@@ -664,8 +664,8 @@ add_fot_ratios<-function(fot_lib_output,
                          fot_map,
                          denom_mult){
   fot_input_tbl<-fot_lib_output %>%
-    mutate(row_ratio=case_when(row_visits==0~0,
-                               TRUE~row_cts/(row_visits*denom_mult)))%>%collect()
+    mutate(row_ratio=case_when(row_pts==0~0,
+                               TRUE~row_pts/(total_pt)*denom_mult))%>%collect()
 
   fot_input_tbl_allsite<-fot_input_tbl%>%
     group_by(check_type, check_name, check_desc, database_version, month_end) %>%
