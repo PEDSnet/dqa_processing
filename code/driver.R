@@ -144,7 +144,7 @@ suppressPackageStartupMessages(library(methods))
   rslt$input_tbl <- results_tbl('fot_output') %>% inner_join(results_tbl('fot_map'),by='check_name')
 
   fot_list <- fot_check('row_cts',tblx=rslt$input_tbl)
-  output_list_to_db(fot_list)
+  output_list_to_db(fot_list, append=FALSE)
 
   rslt$fot_output_distance <- check_fot_all_dist(fot_list$fot_heuristic_pp)
   output_tbl(rslt$fot_output_distance,

@@ -664,7 +664,7 @@ add_fot_ratios<-function(fot_lib_output,
                          fot_map,
                          denom_mult){
   fot_input_tbl<-fot_lib_output %>%
-    mutate(row_ratio=case_when(row_pts==0~0,
+    mutate(row_ratio=case_when(row_pts==0|total_pt==0~0,
                                TRUE~row_pts/(total_pt)*denom_mult))%>%collect()
 
   fot_input_tbl_allsite<-fot_input_tbl%>%
