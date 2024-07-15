@@ -220,7 +220,8 @@ compute_new_thresholds <- function(redcap_tbl,
            threshold_version_global,
            application,
            site,
-           threshold_version)
+           threshold_version,
+           threshold_operator)
 
   # thresholds from anomaly detection
   anomaly_thresholds<-anomaly_tbl%>%
@@ -253,15 +254,14 @@ compute_new_thresholds <- function(redcap_tbl,
            check_name,
            check_name_app,
            threshold_rc,
+           threshold_operator,
            finalflag)
-  #
-  #
-  #
+
   new_thresholds <-
     thresholds_previous_merged %>%
     left_join(
       redcap_new,
-      by=c('site','check_name','check_name_app'),
+      by=c('site','check_name','check_name_app','threshold_operator'),
       copy=TRUE) %>%
     # if there was a threshold in redcap (could be newly assigned or not, use that)
     # if there was a threshold in the previous version but not in redcap (e.g. wasn't a violation), use that
@@ -273,8 +273,6 @@ compute_new_thresholds <- function(redcap_tbl,
                                TRUE~threshold_pedsnet_default))%>%
     select(-threshold_rc)%>%
     mutate(threshold_version = version_num_current) %>%
-    # PROBABLY REMOVE THIS, but for now trying to just have one row per threshold (up to here there could be more than one newthreshold from the previous redcap)
-    group_by(site, check_name_app)%>%filter(threshold==max(threshold))%>%ungroup()%>%distinct()%>%
     mutate(rc_stop_flag=case_when(finalflag=='Stop flagging'~TRUE,
                                   TRUE~FALSE))%>%
     select(-finalflag)
