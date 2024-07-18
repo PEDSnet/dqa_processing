@@ -281,7 +281,7 @@ fot_check <- function(target_col,
   agg_check <- tblx %>% group_by(domain, !!sym(time_col),!!sym(check_col), !!sym(check_desc)) %>%
     summarise({{target_col}} := sum(!!sym(target_col))) %>%
     ungroup() %>%
-    mutate({{site_col}}:='all')  # I need a cheat sheet of when {{x}}/eval(x)/!!sym(x) will actually work
+    mutate({{site_col}}:='all')
 
   for (target_check in tblx %>% select(!!sym(check_col)) %>% distinct() %>% pull()) {
     for (target_site in tblx %>% select(!!sym(site_col)) %>% distinct() %>% pull()) {
@@ -325,10 +325,9 @@ fot_check <- function(target_col,
 
 
   return(list(fot_heuristic_pp= dplyr::union(rv %>% select(cols_to_keep),
-                                          rv_agg),#%>% output_tbl('fot_heuristic'),
+                                          rv_agg),
               fot_heuristic_summary_pp=dplyr::union(rv_summary,
-                                                 rv_summary_allsites))) #%>% output_tbl('fot_heuristic_summary'),
-              #network_check_tbl = rv_agg %>% output_tbl('fot_heuristic_network_wide')))
+                                                 rv_summary_allsites)))
 }
 
 #' fot table computing distance from "all" check
@@ -526,8 +525,6 @@ apply_dcon_pp <- function(dcon_tbl,
     # in case one of the cohort denominators is 0
     mutate(prop=case_when(is.na(prop)~0,
                           TRUE~prop))
-    # select(-c(cohort_1, cohort_2))%>%
-    # distinct()
   }
   return(dcon_tbl_pp%>%
            mutate(check_name_app=paste0(check_name,"_concordance")))

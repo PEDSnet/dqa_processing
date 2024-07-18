@@ -1,78 +1,3 @@
-
-
-
-#' pull dqa table names
-#'
-#' @return a two-column tibble: `schema`, `table`
-#' will return with results schema removed
-#'
-
-pull_dqa_table_names <- function(db=config('db_src'),
-                                 schema_name=config('results_schema')) {
-
-
-
-  #' pulls table names from database
-  tbl_names <-
-    db %>%
-    DBI::dbListObjects(DBI::Id(schema= schema_name)) %>%
-    dplyr::pull(table) %>%
-    purrr::map(~slot(.x, 'name')) %>%
-    dplyr::bind_rows() %>%
-    # select(! matches('*_pp_*'))
-    filter(! str_detect(table,'pp')) %>%
-    filter(str_detect(table,'output|violations')) %>%
-    filter(! str_detect(table, 'fot|dcon')) %>%
-    filter(! str_detect(table, 'thrshld')) %>%
-    filter(! str_detect(table, 'old'))
-
-
-  #' will remove the results name tag from table names
-  tbl_names_short <-
-    tbl_names %>%
-    mutate_all(~gsub(paste0(config('results_name_tag')),'',.))
-
-
-
-}
-
-
-#' pull dqa tables
-#'
-#' @param tbl_names output from `pull_dqa_table_names`
-#' @return list of tables with dqa results for each element
-#'
-
-pull_dqa_tables <- function(tbl_names) {
-
-
-  #' pulls all table results out
-  tbls_all <- list()
-
-
-  for(i in 1:nrow(tbl_names)) {
-
-    string_name <-
-      tbl_names[i,] %>%
-      select(table) %>%
-      pull()
-
-
-    if(config('new_site_pp')) {
-      tbl_dq <-
-        results_tbl_other(string_name) %>% collect()
-    } else {tbl_dq <-
-      results_tbl(string_name) %>% collect()}
-
-
-    tbls_all[[paste0(string_name)]] <- tbl_dq
-
-  }
-
-  tbls_all
-
-}
-
 #' appends check_name and check_type and site to table names
 #'
 #' @param tbl_names_df output from `pull_dqa_table_names`
@@ -149,33 +74,6 @@ get_check_names <- function(tbl_names) {
 
   final_reduce
 }
-
-
-#' reads in thresholds from the specs folder
-#'
-#' @param check_tbl output from `get_check_names`
-#' @param threshold_tbl a csv file from the specs folder that
-#' has all thresholds
-#'
-#' @return tbl with 5 columns: `site`, `check_type`, `check_name`, `threshold`, `threshold_operator`
-#'
-#'
-
-set_broad_thresholds <- function(check_tbl,
-                                 threshold_tbl=read_codeset('threshold_limits_test',
-                                                            col_types='ccdc')) {
-
-  checks <-
-    check_tbl %>%
-    inner_join(threshold_tbl,
-               by=c('check_type','check_name'),
-               multiple='all') %>%
-    filter(! site == 'unknown',
-           ! site == 'total')
-
-
-}
-
 
 #' integrates redcap output with thresholds
 #'
@@ -387,8 +285,7 @@ pull_dqa_table_names_post <- function(schema_name=config('results_schema')) {
  create_threshold_tbl_post <- function(check_apps_tbl=
                                          read_codeset('check_apps','ccicccccc')) {
 
-   tbls <- pull_dqa_table_names_post() #%>%
-     #filter(!table == 'bmc_rxnorm_output_pp')
+   tbls <- pull_dqa_table_names_post()
 
    check_apps <- check_apps_tbl
 
@@ -448,7 +345,6 @@ pull_dqa_table_names_post <- function(schema_name=config('results_schema')) {
  create_thresholds_full <- function(schema_name_input,
                                     append_tbl,
                                     threshold_input=results_tbl('thresholds'),
-                                    #thresholds=results_tbl('thresholds'),
                                     db_input=config('db_src'),
                                     threshold_apps=read_codeset('check_apps', col_types = 'cccc')) {
 
@@ -459,7 +355,6 @@ pull_dqa_table_names_post <- function(schema_name=config('results_schema')) {
                                               schema_name=schema_name_input)
    otpt$dqa_tbls <- pull_dqa_tables(otpt$dqa_tbl_names)
    otpt$check_names <- get_check_names(otpt$dqa_tbl_names)
-   #otpt$thresholds <- set_broad_thresholds(check_tbl=otpt$check_names)
    thresholds_attached <- attach_thresholds(tbls_all=otpt$dqa_tbls,
                                             thresholds=threshold_input,
                                             append_tbl_existing=append_tbl)

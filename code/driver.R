@@ -247,15 +247,13 @@ suppressPackageStartupMessages(library(methods))
   redcap_prev <- .qual_tbl(name='dqa_issues_redcap',
                            schema='dqa_rox',
                            db=config('db_src_prev'))%>%
-    # only doing this for v54 due to manual change of redcap threshold in v53
-    filter(!(site=='cchmc'&(check_name%in%c('dc_adt','dc_adt_picu','dc_adt_nicu','dc_adt_cicu'))))%>%
     mutate(threshold_operator=case_when(threshop=='greater than'~'gt',
                                         threshop=='less than'~'lt'))
-  # neither of the changed names are in here so don't need to update
+
   thresholds_prev <- .qual_tbl(name='thresholds',
                                schema='dqa_rox',
                                db=config('db_src_prev'))
-  ## This table will exist in schema moving forward, but first introduced to schema in v52
+
   thresholds_history <- .qual_tbl(name='thresholds_history',
                                   schema='dqa_rox',
                                   db=config('db_src_prev'))
