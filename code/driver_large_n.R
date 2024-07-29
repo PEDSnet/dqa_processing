@@ -32,9 +32,10 @@
                                     filter(site != 'total'),
                                   check_string = 'uc',
                                   num_col = 'unmapped_prop',
-                                  grp_vars = c('measure', 'check_name'))
+                                  grp_vars = c('measure', 'check_name', 'check_type'),
+                                  shape="wide")
 
-  output_tbl(rslt$uc_ln %>% union(results_tbl('uc_output_pp') %>%
+  output_tbl(rslt$uc_ln %>% bind_rows(results_tbl('uc_output_pp') %>%
                                       filter(site == 'total') %>% collect()), 'uc_output_ln')
 
   rslt$uc_by_yr_ln <- summarize_large_n(dq_output = results_tbl('uc_by_year_pp') %>%
