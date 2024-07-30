@@ -51,27 +51,33 @@
 
   ## Person Facts
 
+  ### person level
   rslt$pf_person_ln <- summarize_large_n(dq_output = results_tbl('pf_output_pp') %>%
                                            filter(site != 'total'),
                                          check_string = 'pf',
                                          num_col = 'fact_pts_prop',
                                          grp_vars = c('check_description', 'check_name',
-                                                      'visit_type'))
+                                                      'visit_type', 'check_desc_neat'),
+                                         shape="wide")%>%
+    rename_with(~paste0(.x,"_pts"), c(min_val, max_val,
+                                        q1, q3,
+                                        median_val, mean_val))
 
+  ### visit level
   rslt$pf_visit_ln <- summarize_large_n(dq_output = results_tbl('pf_output_pp') %>%
                                            filter(site != 'total'),
                                         check_string = 'pf',
                                          num_col = 'fact_visits_prop',
                                          grp_vars = c('check_description', 'check_name',
-                                                      'visit_type'))
+                                                      'visit_type', 'check_desc_neat'),
+                                        shape="wide")%>%
+    rename_with(~paste0(.x,"_visits"), c(min_val, max_val,
+                                      q1, q3,
+                                      median_val, mean_val))
 
-  joincols <- colnames(rslt$pf_person_ln)
-  joincols <- joincols[!joincols %in% c('max_val', 'min_val', 'q1', 'q3',
-                                        'mean_val', 'median_val')]
-
-  rslt$pf_final_ln <- rslt$pf_person_ln %>% select(-fact_visits_prop) %>%
-    left_join(rslt$pf_visit_ln %>% select(-fact_pts_prop)) %>%
-    union(results_tbl('pf_output_pp') %>% filter(site == 'total') %>% collect())
+  ### stitch together and bring in the total rows
+  rslt$pf_final_ln <- rslt$pf_person_ln %>% full_join(rslt$pf_visit_ln) %>%
+    bind_rows(results_tbl('pf_output_pp') %>% filter(site == 'total') %>% collect())
 
   output_tbl(rslt$pf_final_ln, 'pf_output_ln')
 
