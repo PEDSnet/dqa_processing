@@ -28,6 +28,9 @@ summarize_large_n <- function(dq_output,
 
   if(!time){
 
+    # summary values already computed for anomaly detection thresholds
+    if(check_string=='ecp'){dq_output<-dq_output%>%select(-c(mean_val, median_val,
+                                                             max_val, min_val))}
     if(check_string == 'vc' || check_string == 'vs'){
       denoms <- dq_output %>% distinct(check_type, table_application,
                                        total_denom_ct) %>%

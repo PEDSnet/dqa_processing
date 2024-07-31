@@ -87,9 +87,10 @@
                                      filter(site != 'total'),
                                    check_string = 'bmc',
                                    num_col = 'best_row_prop',
-                                   grp_vars = c('check_name', 'check_desc', 'include_new'))
+                                   grp_vars = c('check_name', 'check_desc', 'include_new'),
+                                   shape="wide")
 
-  output_tbl(rslt$bmc_ln%>% union(results_tbl('bmc_gen_output_pp') %>%
+  output_tbl(rslt$bmc_ln%>% bind_rows(results_tbl('bmc_gen_output_pp') %>%
                                           filter(site == 'total') %>% collect()),
              'bmc_gen_output_ln')
 
@@ -99,10 +100,11 @@
                                             filter(site != 'total'),
                                     check_string = 'dcon',
                                           num_col = 'prop',
-                                          grp_vars = c('cohort', 'check_name',
-                                                       'check_type'))
+                                          grp_vars = c('cohort', 'check_name','check_desc',
+                                                       'check_type'),
+                                    shape="wide")
 
-  output_tbl(rslt$dcon_ln %>% union(results_tbl('dcon_output_pp') %>%
+  output_tbl(rslt$dcon_ln %>% bind_rows(results_tbl('dcon_output_pp') %>%
                                     filter(site == 'total') %>% collect()), 'dcon_output_ln')
 
   ## MF VisitID
@@ -111,9 +113,10 @@
                                             filter(site != 'total'),
                                           check_string = 'mf',
                                           num_col = 'prop_missing_visits_total',
-                                          grp_vars = c('measure', 'domain', 'check_name'))
+                                          grp_vars = c('measure', 'domain', 'check_name', 'check_type', 'check_name_app'),
+                                          shape="wide")
 
-  output_tbl(rslt$mf_visitid_ln %>% union(results_tbl('mf_visitid_pp') %>%
+  output_tbl(rslt$mf_visitid_ln %>% bind_rows(results_tbl('mf_visitid_pp') %>%
                                       filter(site == 'total') %>% collect()), 'mf_visitid_ln')
 
   ## Expected Concepts Present
@@ -122,9 +125,10 @@
                                      filter(site != 'total'),
                                    check_string = 'ecp',
                                    num_col = 'prop_with_concept',
-                                   grp_vars = c('concept_group', 'check_name'))
+                                   grp_vars = c('concept_group', 'check_name', 'check_name_app'),
+                                   shape="wide")
 
-  output_tbl(rslt$ecp_ln %>% union(results_tbl('ecp_output_pp') %>%
+  output_tbl(rslt$ecp_ln %>% bind_rows(results_tbl('ecp_output_pp') %>%
                                             filter(site == 'total') %>% collect()), 'ecp_output_ln')
 
   ## Facts Over Time
