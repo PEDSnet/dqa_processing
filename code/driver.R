@@ -89,6 +89,7 @@ suppressPackageStartupMessages(library(methods))
           config('framework_version'))
 
   rslt <- list()
+  # DC ------
   message('Changes between data cycles processing')
   rslt$dc_preprocess <- dc_preprocess(results='dc_output')
 
@@ -96,6 +97,7 @@ suppressPackageStartupMessages(library(methods))
               name='dc_output_pp',
               temporary = FALSE)
 
+  # VC and VS -----
   message('Value set and vocabulary violations processing')
   # by vocabulary_id
   rslt$vc_vs_output_preprocess <- vc_vs_violations_preprocess(results='vc_vs_violations')
@@ -109,6 +111,7 @@ suppressPackageStartupMessages(library(methods))
               name='vc_vs_violations_pp',
               temporary=FALSE)
 
+  # UC ------
   message('Unmapped concepts processing')
   rslt$uc_preprocess <- uc_process(results='uc_output')
   copy_to_new(df=rslt$uc_preprocess,
@@ -124,18 +127,21 @@ suppressPackageStartupMessages(library(methods))
               name='uc_grpd_pp',
               temporary=FALSE)
 
+  # MF ------
   message('Missing field: visit id processing')
   rslt$mf_visitid_preprocess <- mf_visitid_preprocess(results='mf_visitid_output')
   copy_to_new(df=rslt$mf_visitid_preprocess,
               name='mf_visitid_pp',
               temporary = FALSE)
 
+  # PF ------
   message('Person facts processing')
   rslt$pf_output_preprocess <- pf_output_preprocess(results='pf_output')
   copy_to_new(df=rslt$pf_output_preprocess,
               name='pf_output_pp',
               temporary = FALSE)
 
+  # FOT ------
   message('Facts over time processing')
   rslt$fot_map <- read_codeset('fot_map','cc')
   output_tbl(rslt$fot_map,

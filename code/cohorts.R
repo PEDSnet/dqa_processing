@@ -665,14 +665,21 @@ add_fot_ratios<-function(fot_lib_output,
     mutate(row_ratio=case_when(row_pts==0|total_pt==0~0,
                                TRUE~row_pts/(total_pt)*denom_mult))%>%collect()
 
-  fot_input_tbl_allsite<-fot_input_tbl%>%
+  fot_input_tbl_allsite_med<-fot_input_tbl%>%
     group_by(check_type, check_name, check_desc, database_version, month_end) %>%
     summarise(row_ratio=median(row_ratio, na.rm=TRUE))%>%
     ungroup()%>%
     mutate(site='allsite_median')
 
+  fot_input_tbl_allsite_mean<-fot_input_tbl%>%
+    group_by(check_type, check_name, check_desc, database_version, month_end) %>%
+    summarise(row_ratio=mean(row_ratio, na.rm=TRUE))%>%
+    ungroup()%>%
+    mutate(site='allsite_mean')
+
   bind_rows(fot_input_tbl,
-            fot_input_tbl_allsite)%>%
+            fot_input_tbl_allsite_med)%>%
+    bind_rows(fot_input_tbl_allsite_mean)%>%
     left_join(fot_map, by = 'check_name')
 
 }
