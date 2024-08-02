@@ -31,31 +31,22 @@ summarize_large_n <- function(dq_output,
     # summary values already computed for anomaly detection thresholds
     if(check_string=='ecp'){dq_output<-dq_output%>%select(-c(mean_val, median_val,
                                                              max_val, min_val))}
-    if(check_string == 'vc' || check_string == 'vs'){
-      denoms <- dq_output %>% distinct(check_type, table_application,
-                                       total_denom_ct) %>%
-        group_by(table_application, check_type) %>%
-        summarise(allsite_denom = sum(total_denom_ct))
+    if(check_string == 'vc'){
+      denoms <- dq_output %>% distinct(check_name, site, check_type,
+                                       table_application,measurement_column,vocabulary_id,
+                                       total_denom_ct)
+      total_viol<-dq_output%>%filter(!accepted_value)%>%
+        group_by(check_name, site, check_type,
+                 table_application,measurement_column) %>%
+        summarise(tot_viol_ct = as.integer(sum(tot_ct)))%>%
+        ungroup()
 
-      newprops <- dq_output %>%
-        distinct(table_application, measurement_column,
-                 vocabulary_id, total_denom_ct, tot_ct,
-                 check_type) %>%
-        group_by(check_type, table_application, measurement_column, vocabulary_id) %>%
-        summarise(allsite_ct = sum(tot_ct)) %>%
-        left_join(denoms) %>%
-        mutate(allsite_prop = round(allsite_ct / allsite_denom, 3)) %>%
-        pivot_longer(cols = allsite_prop,
-                     names_to = 'site',
-                     values_to = 'tot_prop') %>% select(-c(allsite_ct, allsite_denom)) %>%
-        collect()
-
-      final_dat <- dq_output %>%
-        collect() %>%
-        bind_rows(newprops)
-
-
-    }else{
+      dq_output<-denoms%>%
+        left_join(total_viol)%>%
+        mutate(tot_viol_ct=case_when(is.na(tot_viol_ct)~0L,
+                                     TRUE~tot_viol_ct),
+               prop_viol=tot_viol_ct/total_denom_ct)
+    }
       summ_dat <- dq_output %>%
         group_by(!!!syms(grp_vars)) %>%
         summarise(max_val = max(!!sym(num_col)),
@@ -78,7 +69,6 @@ summarize_large_n <- function(dq_output,
           collect() %>%
           left_join(summ_dat)
       }
-    }
 
   }else{
 

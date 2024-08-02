@@ -16,14 +16,23 @@
 
   ## Vocabulary & Valueset Conformance
 
-  rslt$vcvs_ln <- summarize_large_n(dq_output = results_tbl('vc_vs_output_pp') %>%
-                                      filter(site != 'total'),
-                                    check_string = 'vc',
+  rslt$vs_ln <- summarize_large_n(dq_output = results_tbl('vc_vs_output_pp') %>%
+                                      filter(site != 'total'&check_type=='vs'),
+                                    check_string = 'vs',
                                     num_col = 'tot_prop',
                                     grp_vars = c('table_application', 'measurement_column',
-                                                 'check_type', 'check_name'))
+                                                 'check_type', 'check_name'),
+                                    shape="wide")
 
-  output_tbl(rslt$vcvs_ln %>% union(results_tbl('vc_vs_output_pp') %>%
+  rslt$vc_ln <- summarize_large_n(dq_output = results_tbl('vc_vs_output_pp') %>%
+                                    filter(site != 'total'&check_type=='vc'),
+                                  check_string = 'vc',
+                                  num_col = 'prop_viol',
+                                  grp_vars = c('table_application', 'measurement_column',
+                                               'check_type', 'check_name'),
+                                  shape="wide")
+
+  output_tbl(rslt$vs_ln%>%bind_rows(rslt$vc_ln) %>% bind_rows(results_tbl('vc_vs_output_pp') %>%
                                     filter(site == 'total') %>% collect()), 'vc_vs_output_ln')
 
   ## Unmapped Concepts
