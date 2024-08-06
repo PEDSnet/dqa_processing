@@ -51,11 +51,11 @@
                                           filter(site != 'total'),
                                         check_string = 'uc',
                                         num_col = 'prop_total',
-                                        grp_vars = c('year_date', 'unmapped_description',
+                                        grp_vars = c('check_type', 'database_version',  'year_date', 'unmapped_description',
                                                      'check_name'),
-                                        time = TRUE)
+                                        shape="wide")
 
-  output_tbl(rslt$uc_by_yr_ln %>% union(results_tbl('uc_by_year_pp') %>%
+  output_tbl(rslt$uc_by_yr_ln %>% bind_rows(results_tbl('uc_by_year_pp') %>%
                                       filter(site == 'total') %>% collect()), 'uc_by_year_ln')
 
   ## Person Facts
