@@ -97,19 +97,36 @@ suppressPackageStartupMessages(library(methods))
               name='dc_output_pp',
               temporary = FALSE)
 
-  # VC and VS -----
-  message('Value set and vocabulary violations processing')
+  message('Value set processing')
   # by vocabulary_id
-  rslt$vc_vs_output_preprocess <- vc_vs_violations_preprocess(results='vc_vs_violations')
-
-  copy_to_new(df=rslt$vc_vs_output_preprocess,
-              name='vc_vs_output_pp',
-              temporary = FALSE)
+  # rslt$vc_vs_output_preprocess <- vc_vs_violations_preprocess(results='vc_vs_violations')
+  # VS
+  rslt$vs_pp<-vs_process('vs_output')
+  output_tbl(rslt$vs_pp,
+             name='vs_output_pp')
   # by check_name_app
-  rslt$vc_vs_violations_pp <- vc_vs_rollup(pp_output = rslt$vc_vs_output_preprocess)
-  copy_to_new(df=rslt$vc_vs_violations_pp,
-              name='vc_vs_violations_pp',
-              temporary=FALSE)
+  rslt$vs_violations_pp<-vc_vs_rollup(rslt$vs_pp)
+  output_tbl(rslt$vs_violations_pp,
+             name='vs_violations_pp')
+
+
+  message('Vocabulary conformance')
+  # VC
+  rslt$vc_pp<-vc_process('vc_output')
+  output_tbl(rslt$vc_pp,
+             name='vc_output_pp')
+  # copy_to_new(df=rslt$vc_vs_output_preprocess,
+  #             name='vc_vs_output_pp',
+  #             temporary = FALSE)
+  # by check_name_app
+  rslt$vc_violations_pp<-vc_vs_rollup(rslt$vc_pp)
+  output_tbl(rslt$vc_violations_pp,
+             name='vc_violations_pp')
+
+  # rslt$vc_vs_violations_pp <- vc_vs_rollup(pp_output = rslt$vc_vs_output_preprocess)
+  # copy_to_new(df=rslt$vc_vs_violations_pp,
+  #             name='vc_vs_violations_pp',
+  #             temporary=FALSE)
 
   # UC ------
   message('Unmapped concepts processing')

@@ -76,25 +76,52 @@ dc_preprocess <- function(results) {
 
 }
 
-#' function to sum total counts by site, domain, and vocabulary_id
-#' and calculate proportions
-#'
-#' @param results vs_vc_violations results tbl
-#'
-#' @return vc_vs_violations tbl with summed total counts and proportions
-
-vc_vs_violations_preprocess <- function(results) {
-
+#' Function to compute proportions of valueset values from vs check
+#' @param results name of the vs library output in results schema
+#' @return table with:
+#'            site
+#'            table_application
+#'            measurement_column
+#'            vocabulary_id
+#'            check_type
+#'            check_name
+#'            total_denom_ct
+#'            accepted_value
+#'            tot_ct: sum of total rows for given value in vs
+#'            tot_prop: sum of proportion of all values for that vs
+vs_process<-function(results){
   results_tbl(results) %>%
-    filter(check_name!='vs_no_violation')%>%
-    mutate(prop_total_viol=round(total_viol_ct/total_denom_ct,8),
-           prop_total_pt_viol=round(total_viol_pt_ct/total_pt_ct,8)) %>%
+    mutate(prop_total_viol=as.numeric(total_viol_ct/total_denom_ct),
+           prop_total_pt_viol=as.numeric(total_viol_pt_ct/total_pt_ct)) %>%
     group_by(site, table_application, measurement_column, vocabulary_id, check_type, check_name, total_denom_ct, accepted_value) %>%
     summarise(tot_ct = sum(total_viol_ct),
               tot_prop = sum(prop_total_viol)) %>%
     ungroup()
-
 }
+
+#' Function to compute proportions of vocabulary values from vc check
+#' @param results name of the vc library output in results schema
+#' @return table with:
+#'            site
+#'            table_application
+#'            measurement_column
+#'            vocabulary_id
+#'            check_type
+#'            check_name
+#'            total_denom_ct
+#'            accepted_value
+#'            tot_ct: sum of total rows for given value in vs
+#'            tot_prop: sum of proportion of all values for that vs
+vc_process<-function(results){
+  results_tbl(results) %>%
+    mutate(prop_total_viol=as.numeric(total_viol_ct/total_denom_ct),
+           prop_total_pt_viol=as.numeric(total_viol_pt_ct/total_pt_ct)) %>%
+    group_by(site, table_application, measurement_column, vocabulary_id, check_type, check_name, total_denom_ct, accepted_value) %>%
+    summarise(tot_ct = sum(total_viol_ct),
+              tot_prop = sum(prop_total_viol)) %>%
+    ungroup()
+}
+
 
 #' function to sum total counts by site, and check_name
 #' and calculate proportions
@@ -517,6 +544,14 @@ apply_dcon_pp <- function(dcon_tbl,
     pivot_longer(cols=c(cohort_1_only, cohort_2_only, combined, cohort_2_in_1, cohort_1_in_2, cohort_1_denom, cohort_2_denom),
                  names_to="cohort",
                  values_to="value")%>%
+    # cohort_1_only: overall, patients in just cohort 1
+    # cohort_2_only: overall, patients in just cohort 2
+    # combined: overall, patients in both 1 and 2
+    # cohort_1_denom: patients in cohort 1 not cohort 2
+    # cohort_2_denom: patients in cohort 2 not cohort 1
+    # cohort_1_in_2: patients in cohort 2 who are also in 1 (use cohort 2 in denom)
+    # cohort_2_in_1: patients in cohort 1 who are also in 2 (use cohort 1 in denom)
+    # note that cohort_1_in_2 and cohort_2_in_1 will have the same raw number, but different proportions since the denominator is different
      mutate(prop=case_when(cohort%in%c('cohort_1_only', 'cohort_2_only', 'combined')~value/tot_pats,
                            cohort=='cohort_1_in_2'~value/cohort_2,
                            cohort=='cohort_2_in_1'~value/cohort_1,
