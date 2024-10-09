@@ -31,13 +31,13 @@ summarize_large_n <- function(dq_output,
     # summary values already computed for anomaly detection thresholds
     if(check_string=='ecp'){dq_output<-dq_output%>%select(-c(mean_val, median_val,
                                                              max_val, min_val))}
-    if(check_string == 'vc'){
+    if(check_string%in%c('vc','vs')){
       denoms <- dq_output %>% distinct(check_name, site, check_type,
-                                       table_application,measurement_column,vocabulary_id,
-                                       total_denom_ct)
+                                       table_application,measurement_column,
+                                       total_denom_ct, site_anon, sitenum)
       total_viol<-dq_output%>%filter(!accepted_value)%>%
         group_by(check_name, site, check_type,
-                 table_application,measurement_column) %>%
+                 table_application,measurement_column, accepted_value) %>%
         summarise(tot_viol_ct = as.integer(sum(tot_ct)))%>%
         ungroup()
 
@@ -45,7 +45,9 @@ summarize_large_n <- function(dq_output,
         left_join(total_viol)%>%
         mutate(tot_viol_ct=case_when(is.na(tot_viol_ct)~0L,
                                      TRUE~tot_viol_ct),
-               prop_viol=tot_viol_ct/total_denom_ct)
+               prop_viol=tot_viol_ct/total_denom_ct,
+               accepted_value=case_when(is.na(accepted_value)~TRUE,
+                                      TRUE~FALSE))
     }
       summ_dat <- dq_output %>%
         group_by(!!!syms(grp_vars)) %>%

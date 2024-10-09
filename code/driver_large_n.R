@@ -19,10 +19,12 @@
   rslt$vs_ln <- summarize_large_n(dq_output = results_tbl('vs_output_pp') %>%
                                       filter(site != 'total'),
                                     check_string = 'vs',
-                                    num_col = 'tot_prop',
+                                    num_col = 'prop_viol',
                                     grp_vars = c('table_application', 'measurement_column',
                                                  'check_type', 'check_name'),
                                     shape="wide")
+  output_tbl(rslt$vs_ln,
+             'vs_output_ln')
 
   rslt$vc_ln <- summarize_large_n(dq_output = results_tbl('vc_output_pp') %>%
                                     filter(site != 'total'),
@@ -32,10 +34,8 @@
                                                'check_type', 'check_name'),
                                   shape="wide")
 
-  output_tbl(rslt$vs_ln%>%bind_rows(results_tbl('vs_output_pp') %>%
-                                    filter(site == 'total') %>% collect()), 'vs_output_ln')
-  output_tbl(rslt$vc_ln%>%bind_rows(results_tbl('vc_output_pp') %>%
-                                      filter(site == 'total') %>% collect()), 'vc_output_ln')
+  output_tbl(rslt$vc_ln,
+             'vc_output_ln')
 
   ## Unmapped Concepts
 
