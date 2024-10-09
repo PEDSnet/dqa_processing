@@ -7,5 +7,5 @@ vs_output,vs_violations_pp,rows,tot_prop,,
 mf_visitid_output,mf_visitid_pp,rows,prop_missing_visits_total,,
 pf_output,pf_output_pp,visits,fact_visits_prop,,
 bmc_gen_output,bmc_anom_pp,rows,best_row_prop,analysis_eligible,yes
-dcon_output,dcon_output_pp,concordance,prop,cohort,cohort_2_denom
+dcon_output,dcon_output_pp,concordance,prop,cohort,cohort_2_in_1
 ecp_output,ecp_output_pp,person,prop_with_concept,analysis_eligible,yes
