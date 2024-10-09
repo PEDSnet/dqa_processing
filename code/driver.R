@@ -111,7 +111,7 @@ suppressPackageStartupMessages(library(methods))
 
 
   message('Vocabulary conformance')
-  # VC
+  # VC ----
   rslt$vc_pp<-vc_process('vc_output')
   output_tbl(rslt$vc_pp,
              name='vc_output_pp')
@@ -179,7 +179,7 @@ suppressPackageStartupMessages(library(methods))
                                          denom_mult=10000L)
   output_tbl(rslt$fot_output_ratios,
              name='fot_output_mnth_ratio_pp')
-
+  # BMC ----
   message('Best mapped concepts processing')
   # sending the set of best/not best mapped concepts to the schema
   rslt$bmc_conceptset<-load_codeset('bmc_conceptset', col_types='cci', indexes=list('check_name')) %>%
@@ -223,6 +223,7 @@ suppressPackageStartupMessages(library(methods))
            application='rows')%>%
     filter(threshold_operator=='lt')
 
+  # DCON ----
   message('Domain concordance processing')
   # overall
   rslt$dcon_output_pp <- apply_dcon_pp(dcon_tbl=results_tbl('dcon_output'),
@@ -230,6 +231,7 @@ suppressPackageStartupMessages(library(methods))
   output_tbl(rslt$dcon_output_pp,
              name='dcon_output_pp')
 
+  # ECP ----
   message("ECP processing")
   rslt$ecp_process <- results_tbl('ecp_output') %>%
     mutate(check_name_app=paste0(check_name, '_person'))%>%
@@ -287,7 +289,8 @@ suppressPackageStartupMessages(library(methods))
   redcap_prev<-redcap_prev%>%
     # use most recent threshold over all time
     anti_join(redcap_prev_nt, by = c('site', 'check_name_app'))%>%
-    dplyr::union_all(redcap_prev_nt)
+    dplyr::union_all(redcap_prev_nt) %>%
+    filter(check_name_full!='Domain Concordance')
   #----
 
   thresholds_prev <- .qual_tbl(name='thresholds',
