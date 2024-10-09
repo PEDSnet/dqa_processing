@@ -272,6 +272,23 @@ suppressPackageStartupMessages(library(methods))
                            db=config('db_src_prev'))%>%
     mutate(threshold_operator=case_when(threshop=='greater than'~'gt',
                                         threshop=='less than'~'lt'))
+  # PATCH for v55: remove in future versions ----
+  redcap_prev_nt<-.qual_tbl(name='dqa_all_issues',
+                            schema='dqa_rox',
+                            db=config('db_src_prev'))%>%
+    filter(!is.na(newthreshold))%>%
+    mutate(version_int=as.integer(str_remove(version, "v")))%>%
+    group_by(site, check_name_app)%>%
+    filter(version_int==max(version_int))%>%
+    ungroup()%>%
+    mutate(threshold_operator=case_when(threshop=='greater than'~'gt',
+                                        threshop=='less than'~'lt'))%>%
+    select(-version_int)
+  redcap_prev<-redcap_prev%>%
+    # use most recent threshold over all time
+    anti_join(redcap_prev_nt, by = c('site', 'check_name_app'))%>%
+    dplyr::union_all(redcap_prev_nt)
+  #----
 
   thresholds_prev <- .qual_tbl(name='thresholds',
                                schema='dqa_rox',

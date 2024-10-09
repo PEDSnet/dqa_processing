@@ -145,9 +145,10 @@ compute_new_thresholds <- function(redcap_tbl,
   redcap_new <-
     redcap_tbl %>%
     mutate(threshold_rc=
-             case_when(is.na(newthreshold) ~ as.numeric(threshold),
-                       TRUE ~ as.numeric(newthreshold))) %>%
-    filter(version==version_num) %>%
+             case_when(!is.na(newthreshold) ~ as.numeric(newthreshold),
+                       TRUE ~ NA_real_)) %>%
+    # PROBABLY WANT TO REMOVE AFTER V55
+    #filter(version==version_num) %>%
     select(site,
            check_name,
            check_name_app,
@@ -163,18 +164,17 @@ compute_new_thresholds <- function(redcap_tbl,
       copy=TRUE) %>%
     # if there was a threshold in redcap (could be newly assigned or not, use that)
     # if there was a threshold in the previous version but not in redcap (e.g. wasn't a violation), use that
-    mutate(threshold_previous=
-             case_when(is.na(threshold_rc) ~ threshold_previous,
-                       TRUE ~ threshold_rc)) %>%
-    mutate(threshold=case_when(!is.na(threshold)~threshold,
-                               !is.na(threshold_previous)~threshold_previous,
+    # mutate(threshold_previous=
+    #          case_when(!is.na(threshold_rc) ~ threshold_rc,
+    #                    TRUE ~ threshold_prev)) %>%
+    mutate(threshold=case_when(!is.na(threshold_rc)~threshold_rc,
+                               # PROBABLY WANT TO CHANGE AFTER V55
                                TRUE~threshold_pedsnet_default))%>%
     select(-threshold_rc)%>%
     mutate(threshold_version = version_num_current) %>%
     mutate(rc_stop_flag=case_when(finalflag=='Stop flagging'~TRUE,
                                   TRUE~FALSE))%>%
     select(-finalflag)
-
 
 }
 
