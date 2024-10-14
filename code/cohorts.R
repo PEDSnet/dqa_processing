@@ -66,12 +66,12 @@ dc_preprocess <- function(results) {
 
   all_dat %>%
     mutate(prop_total_change=case_when(is.na(prop_total_change)~0,
-                                       TRUE~prop_total_change),
-           abs_prop=abs(prop_total_change),
-           newval=1+((exp(100)-1)/(max_val)*(abs_prop)),
-           plot_prop=case_when(prop_total_change<0~-1*log(newval),
-                                TRUE~log(newval)))%>%
-    select(-c(abs_prop, newval))
+                                       TRUE~prop_total_change))
+    #        abs_prop=abs(prop_total_change),
+    #        newval=1+((exp(100)-1)/(max_val)*(abs_prop)),
+    #        plot_prop=case_when(prop_total_change<0~-1*log(newval),
+    #                             TRUE~log(newval)))%>%
+    # select(-c(abs_prop, newval))
 
 
 }
@@ -848,4 +848,26 @@ detect_outliers <- function(df_tbl,
   }
 
   return(output_final_all)
+}
+
+#' Function to re-assign output from data cycle changes function
+#'      for ease of visualization
+#' @param tbl table that contains the output from the DC check + anomaly detection
+#' @return table with all of the original columns from original `tbl` + a column `plot_prop`
+#'        which contains the value of `prop_total_change` if the value is not an outlier
+#'        and the value of the most extreme `prop_total_change` that is NOT an outlier
+#'              if the original value is an outlier
+dc_suppress_outlier<-function(tbl){
+  tbl_ranked<-tbl%>%
+    filter(anomaly_yn!='outlier')%>%
+    group_by(application)%>%
+    summarise(min_not_outlier=min(prop_total_change),
+              max_not_outlier=max(prop_total_change))%>%
+    ungroup()
+  tbl%>%
+    left_join(tbl_ranked, by = 'application')%>%
+    mutate(plot_prop=case_when(anomaly_yn=='outlier'&prop_total_change<lower_tail~min_not_outlier,
+                                   anomaly_yn=='outlier'&prop_total_change>upper_tail~max_not_outlier,
+                                   TRUE~prop_total_change))%>%
+    select(-c(min_not_outlier, max_not_outlier))
 }

@@ -93,7 +93,22 @@ suppressPackageStartupMessages(library(methods))
   message('Changes between data cycles processing')
   rslt$dc_preprocess <- dc_preprocess(results='dc_output')
 
-  copy_to_new(df=rslt$dc_preprocess,
+  # flag anomalies
+  rslt$dc_anom<-compute_dist_anomalies(df_tbl=filter(rslt$dc_preprocess,site!='total'),
+                                        grp_vars=c('check_type', 'application'),
+                                        var_col='prop_total_change')
+  rslt$dc_anom_pp<-detect_outliers(df_tbl=rslt$dc_anom,
+                                    tail_input = 'both',
+                                    p_input = 0.9,
+                                    column_analysis = 'prop_total_change',
+                                    column_eligible = 'analysis_eligible',
+                                    column_variable = 'application')
+
+  # for plotting
+  rslt$dc_pp_plot<-dc_suppress_outlier(bind_rows(rslt$dc_anom_pp,
+                                                 filter(rslt$dc_preprocess,site=='total')))
+
+  copy_to_new(df=rslt$dc_pp_plot,
               name='dc_output_pp',
               temporary = FALSE)
 
