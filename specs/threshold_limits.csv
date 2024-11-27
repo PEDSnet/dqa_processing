@@ -56,7 +56,6 @@ mf_visitid,mf_visitid_im,0.99,gt,rows
 mf_visitid,mf_visitid_dp,0.05,gt,rows
 mf_visitid,mf_visitid_ml,0.05,gt,rows
 mf_visitid,mf_visitid_dr,0.05,gt,rows
-mf_visitid,mf_visitid_co,0.05,gt,rows
 pf,pf_edvisits_co,0.6,lt,visits
 pf,pf_edvisits_dr,0.5,lt,visits
 pf,pf_edvisits_im,0,lt,visits
