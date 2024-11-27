@@ -160,11 +160,6 @@ suppressPackageStartupMessages(library(methods))
                                                       anom_thresholds=bind_rows(rslt$bmc_thresh,
                                                                                 rslt$ecp_thresh))
 
-  # no need to output to db because can filter the thresholds history to a certain version
-  # copy_to_new(df=thresholds,
-  #             name='thresholds_pedsnet_standard',
-  #             temporary=FALSE)
-
   message('Finding previous thresholds')
   # Find n-1 thresholds for those that should be re-set or stop flagging
   rslt$redcap_prev <- .qual_tbl(name='dqa_issues_redcap',
@@ -178,71 +173,16 @@ suppressPackageStartupMessages(library(methods))
                                   finalflag=='Other'~4L))%>%
     filter(rc_finalflag%in%c(2L,3L))%>%collect()
 
-  # PATCH for v55: remove in future versions ----
-  # rslt$redcap_prev_nt<-.qual_tbl(name='dqa_all_issues',
-  #                                schema='dqa_rox',
-  #                                db=config('db_src_prev'))%>%
-  #   mutate(rc_finalflag=case_when(finalflag=='Continue to flag'~1L,
-  #                                 finalflag=='Stop flagging'~2L,
-  #                                 finalflag=='Continue flagging with new threshold'~3L,
-  #                                 finalflag=='Other'~4L))%>%
-  #   filter(rc_finalflag%in%c(2L,3L))%>%
-  #   mutate(version_int=as.integer(str_remove(version, "v")))%>%
-  #   group_by(site, check_name_app, threshop)%>%
-  #   filter(version_int==max(version_int))%>%
-  #   ungroup()%>%
-  #   mutate(threshold_operator=case_when(threshop=='greater than'~'gt',
-  #                                       threshop=='less than'~'lt'))%>%
-  #   select(-version_int)%>%collect()
-  # rslt$redcap_prev<-rslt$redcap_prev%>%
-  #   # use most recent threshold over all time
-  #   anti_join(rslt$redcap_prev_nt, by = c('site', 'check_name_app','threshold_operator'))%>%
-  #   dplyr::union_all(rslt$redcap_prev_nt) %>%
-  #   filter(check_name_full!='Domain Concordance')%>%
-  #   mutate(database_version='v55')
-  #----
-
-  # test new threshold assignment
+  # this is the table in the v55 schema, but starting in v57, point to thresholds_history instead
   rslt$thresholds_history<-results_tbl('thresholds_history_new')%>%collect()
   rslt$thresholds_this_version<-determine_thresholds(default_thresholds=rslt$thresholds_standard,
                                                      newset_thresholds=rslt$redcap_prev,
                                                      history_thresholds=rslt$thresholds_history)
-  # create new "history" table
-  # will have to modify for future
-  # test_history<-results_tbl('thresholds_history_test')%>%filter(database_version!='v55')%>%collect()%>%select(-rc_stop_flag)%>%
-  #   bind_rows(test_thresh_assign)
-  # output_tbl(test_history,
-  #            name='thresholds_history_new')
-
-  # thresholds_prev <- .qual_tbl(name='thresholds',
-  #                              schema='dqa_rox',
-  #                              db=config('db_src_prev'))
-
-  # thresholds_history <- .qual_tbl(name='thresholds_history',
-  #                                 schema='dqa_rox',
-  #                                 db=config('db_src_prev'))
-
-  message('Assigning thresholds for current cycle')
-  # thresholds_this_version <-
-  #   compute_new_thresholds(redcap_tbl=redcap_prev,
-  #                          previous_thresholds=thresholds_prev,
-  #                          threshold_tbl=thresholds,
-  #                          anomaly_tbl = bind_rows(rslt$bmc_thresh,
-  #                                                  rslt$ecp_thresh))
-  #
-  #
-  # copy_to_new(df=thresholds_this_version,
-  #             name='thresholds',
-  #             temporary = FALSE)
-
   message('Creating table to track threshold versions')
-
   rslt$thresholds_history_new <- bind_rows(rslt$thresholds_this_version,
                                            rslt$thresholds_history)
   output_tbl(thresholds_history_new,
              name='thresholds_history')
-
-
 
   message('Create threshold table')
   rslt$thresholds_applied <- apply_thresholds(check_app_tbl=read_codeset('check_apps', col_types = 'cccccc'),

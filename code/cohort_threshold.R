@@ -486,9 +486,16 @@ determine_thresholds<-function(default_thresholds,
   thresh_reset<-default_thresholds_sites%>%
     left_join(newset_thresholds_pp, by = c('site','check_name_app','threshold_operator'))%>%
     left_join(history_thresholds_pp, by = c('site', 'check_name_app','threshold_operator'))%>%
-    mutate(nt=coalesce(newthreshold,prevthreshold,threshold),
-           # take the most recent flag for whether to flag or reset threshold
-           rc_finalflag=coalesce(rc_finalflag_n1, rc_finalflag_prev))%>%
+    mutate(rc_finalflag=coalesce(rc_finalflag_n1, rc_finalflag_prev),
+           rc_threshold=coalesce(newthreshold, prevthreshold))%>%
+    mutate(nt=case_when(
+      # flagging less than, default threshold is more lenient
+      (rc_finalflag==3L&threshold_operator=='lt'&threshold<rc_threshold)|
+        # flagging greater than, default threshold is more lenient
+      (rc_finalflag==3L&threshold_operator=='gt'&threshold>rc_threshold)~threshold,
+      # new threshold assigned
+      rc_finalflag==3L~rc_threshold,
+      TRUE~threshold))%>%
     distinct(check_type, check_name_app, check_name, threshold_operator, database_version, site, nt, rc_finalflag)%>%
     rename(threshold=nt)%>%
     bind_rows(default_thresholds)
