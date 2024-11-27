@@ -385,7 +385,7 @@ pull_dqa_table_names_post <- function(schema_name=config('results_schema')) {
  apply_thresholds <- function(check_app_tbl,
                               threshold_tbl){
    threshold_tbl_limited <- threshold_tbl %>%
-     select(site, check_name, check_name_app, threshold, threshold_operator, threshold_version, rc_stop_flag)
+     select(site, check_name, check_name_app, threshold, threshold_operator, rc_finalflag)
 
    tbls_to_apply<-check_app_tbl %>%
      select(tbl_name_post) %>%
@@ -422,7 +422,7 @@ pull_dqa_table_names_post <- function(schema_name=config('results_schema')) {
                                   threshold_operator=='lt'&
                                     value_output<threshold~TRUE,
                                           TRUE~FALSE))%>%
-       select(site, threshold, threshold_operator, check_name, check_name_app, threshold_version, value_output, violation, rc_stop_flag)%>%
+       select(site, threshold, threshold_operator, check_name, check_name_app, value_output, violation, rc_finalflag)%>%
        collect()
 
 
@@ -430,3 +430,67 @@ pull_dqa_table_names_post <- function(schema_name=config('results_schema')) {
    }
    tbls_all
  }
+
+#' Function to format the `thresholds_limits` file to feed forward into tracking
+#' @param std_thresholds standard thresholds file, with the cols:
+#'          check_type
+#'          check_name
+#'          threshold
+#'          threshold_operator
+#'          application
+#' @return table with the original columns +:
+#'          check_name_app
+#'          database_version
+#'          site
+format_default_thresholds<-function(std_thresholds,
+                                    anom_thresholds){
+  std_thresholds%>%
+    unite('check_name_app',c(check_name,application), sep='_',remove=FALSE) %>%
+    bind_rows(anom_thresholds%>%select(-site,-application)%>%distinct())%>%
+    select(-application)%>%
+    mutate(database_version=config('current_version'),
+           site='default')
+}
+
+#' Function to determine the thresholds to be used in this version
+#' @param default_thresholds thresholds that are set across all sites for all applicable checks, including those for anomaly detection
+#' @param newset_thresholds thresholds that were set in the version 1 prior
+#' @param history_thresholds table containing all the prior thresholds,
+#'                in order to assess
+determine_thresholds<-function(default_thresholds,
+                               newset_thresholds,
+                               history_thresholds,
+                               site_name_tbl=read_codeset('site_names',col_types = 'c')){
+  # apply standard thresholds to each of the sites
+  default_thresholds_sites <-
+    merge(default_thresholds%>%select(-site),site_name_tbl) %>% tibble::as_tibble()
+
+  # check to see if a new threshold was set 1 version back (newset_thresholds)
+  newset_thresholds_pp<-newset_thresholds%>%
+    distinct(site, check_name_app, newthreshold, threshold_operator, rc_finalflag)%>%
+    mutate(newthreshold=case_when(rc_finalflag==3L~as.numeric(newthreshold),
+                                  TRUE~NA_real_))%>%
+    rename(rc_finalflag_n1=rc_finalflag)
+
+  # check to see if a threshold was assigned any number of versions ago
+  # if threshold set more than one time, use the most recent
+  history_thresholds_pp<-history_thresholds%>%
+    group_by(site, check_name_app, threshold_operator)%>%
+    filter(database_version==max(database_version, na.rm=TRUE))%>%
+    ungroup()%>%
+    select(site, check_name_app, threshold_operator,threshold,rc_finalflag)%>%
+    rename(prevthreshold=threshold,
+           rc_finalflag_prev=rc_finalflag)
+
+  # put them together and chose one to use
+  thresh_reset<-default_thresholds_sites%>%
+    left_join(newset_thresholds_pp, by = c('site','check_name_app','threshold_operator'))%>%
+    left_join(history_thresholds_pp, by = c('site', 'check_name_app','threshold_operator'))%>%
+    mutate(nt=coalesce(newthreshold,prevthreshold,threshold),
+           # take the most recent flag for whether to flag or reset threshold
+           rc_finalflag=coalesce(rc_finalflag_n1, rc_finalflag_prev))%>%
+    distinct(check_type, check_name_app, check_name, threshold_operator, database_version, site, nt, rc_finalflag)%>%
+    rename(threshold=nt)%>%
+    bind_rows(default_thresholds)
+}
+

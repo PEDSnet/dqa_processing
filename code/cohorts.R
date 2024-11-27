@@ -733,7 +733,7 @@ add_fot_ratios<-function(fot_lib_output,
 #'  (1) Sample size < 5 in group
 #'  (2) Mean < 0.02 or Median < 0.01
 #'  (3) Mean value < 0.05 and range <0.01
-#'  (4) Coefficient of variance <0.01 and sample size <11
+#'  (4) Coefficient of variance <0.05 and sample size <11
 #'
 
 
@@ -766,7 +766,7 @@ compute_dist_anomalies <- function(df_tbl,
     ungroup() %>% mutate(analysis_eligible =
                            case_when(mean_val < 0.02 | median_val < 0.01 |
                                        (mean_val < 0.05 & range_val < 0.1) |
-                                       (cov_val < 0.1 & total_ct < 11) ~ 'no',
+                                       (cov_val < 0.05 & total_ct < 11) ~ 'no',
                                      TRUE ~ 'yes'))
   final <- tbl_new %>% left_join(stats,
                                  by=c(grp_vars))
