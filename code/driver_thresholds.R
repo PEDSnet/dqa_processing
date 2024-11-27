@@ -36,30 +36,30 @@ suppressPackageStartupMessages(library(methods))
 #' @md
 .load <- function(here = ifelse(typeof(get('config')) == 'closure',
                                 config('base_dir'), base_dir)) {
-    source(file.path(here, 'code', 'config.R'))
-    source(file.path(here, 'code', 'req_info.R'))
-    source(config('site_info'))
-    source(file.path(here, config('subdirs')$code_dir, 'setup.R'))
-    source(file.path(here, config('subdirs')$code_dir, 'codesets.R'))
-    for (fn in list.files(file.path(here, config('subdirs')$code_dir),
+  source(file.path(here, 'code', 'config.R'))
+  source(file.path(here, 'code', 'req_info.R'))
+  source(config('site_info'))
+  source(file.path(here, config('subdirs')$code_dir, 'setup.R'))
+  source(file.path(here, config('subdirs')$code_dir, 'codesets.R'))
+  for (fn in list.files(file.path(here, config('subdirs')$code_dir),
                         'util_.+\\.R', full.names = TRUE))
-      source(fn)
-    for (fn in list.files(file.path(here, config('subdirs')$code_dir),
-                          'cohort_.+\\.R', full.names = TRUE))
-      source(fn)
-    for (fn in list.files(file.path(here, config('subdirs')$code_dir),
+    source(fn)
+  for (fn in list.files(file.path(here, config('subdirs')$code_dir),
+                        'cohort_.+\\.R', full.names = TRUE))
+    source(fn)
+  for (fn in list.files(file.path(here, config('subdirs')$code_dir),
                         'analyze_.+\\.R', full.names = TRUE))
-      source(fn)
-    source(file.path(here, config('subdirs')$code_dir, 'cohorts.R'))
+    source(fn)
+  source(file.path(here, config('subdirs')$code_dir, 'cohorts.R'))
 
-    .env_setup()
+  .env_setup()
 
-    for (def in c('retain_intermediates', 'results_schema')) {
-      if (is.na(config(def)))
-        config(def, config(paste0('default_', def)))
-    }
+  for (def in c('retain_intermediates', 'results_schema')) {
+    if (is.na(config(def)))
+      config(def, config(paste0('default_', def)))
+  }
 
-    here
+  here
 }
 
 #' Execute the request
@@ -89,131 +89,20 @@ suppressPackageStartupMessages(library(methods))
           config('framework_version'))
 
   rslt <- list()
-  # DC ------
-  message('Changes between data cycles processing')
-  rslt$dc_preprocess <- dc_preprocess(results='dc_output')
 
-  # flag anomalies to limit the range of output values for visualization
-  # NOT used as thresholds
-  rslt$dc_anom<-compute_dist_anomalies(df_tbl=filter(rslt$dc_preprocess,site!='total'),
-                                        grp_vars=c('check_type', 'application'),
-                                        var_col='prop_total_change')
-  rslt$dc_anom_pp<-detect_outliers(df_tbl=rslt$dc_anom,
-                                    tail_input = 'both',
-                                    p_input = 0.9,
-                                    column_analysis = 'prop_total_change',
-                                    column_eligible = 'analysis_eligible',
-                                    column_variable = 'application')
-
-  # for plotting
-  rslt$dc_pp_plot<-dc_suppress_outlier(bind_rows(rslt$dc_anom_pp,
-                                                 filter(rslt$dc_preprocess,site=='total')))
-
-  copy_to_new(df=rslt$dc_pp_plot,
-              name='dc_output_pp',
-              temporary = FALSE)
-
-  message('Value set processing')
-  # by vocabulary_id
-  # rslt$vc_vs_output_preprocess <- vc_vs_violations_preprocess(results='vc_vs_violations')
-  # VS
-  rslt$vs_pp<-vs_process('vs_output')
-  output_tbl(rslt$vs_pp,
-             name='vs_output_pp')
-  # by check_name_app
-  rslt$vs_violations_pp<-vc_vs_rollup(rslt$vs_pp)
-  output_tbl(rslt$vs_violations_pp,
-             name='vs_violations_pp')
-
-
-  message('Vocabulary conformance')
-  # VC ----
-  rslt$vc_pp<-vc_process('vc_output')
-  output_tbl(rslt$vc_pp,
-             name='vc_output_pp')
-  # copy_to_new(df=rslt$vc_vs_output_preprocess,
-  #             name='vc_vs_output_pp',
-  #             temporary = FALSE)
-  # by check_name_app
-  rslt$vc_violations_pp<-vc_vs_rollup(rslt$vc_pp)
-  output_tbl(rslt$vc_violations_pp,
-             name='vc_violations_pp')
-
-  # rslt$vc_vs_violations_pp <- vc_vs_rollup(pp_output = rslt$vc_vs_output_preprocess)
-  # copy_to_new(df=rslt$vc_vs_violations_pp,
-  #             name='vc_vs_violations_pp',
-  #             temporary=FALSE)
-
-  # UC ------
-  message('Unmapped concepts processing')
-  rslt$uc_preprocess <- uc_process(results='uc_output')
-  copy_to_new(df=rslt$uc_preprocess,
-              name='uc_output_pp',
-              temporary = FALSE)
-
-  rslt$uc_by_year_preprocess <- uc_by_year_preprocess(results='uc_by_year')
-  copy_to_new(df=rslt$uc_by_year_preprocess,
-              name='uc_by_year_pp',
-              temporary = FALSE)
-  rslt$uc_grpd_process <- results_tbl('uc_grpd')
-  copy_to_new(df=rslt$uc_grpd_process,
-              name='uc_grpd_pp',
-              temporary=FALSE)
-
-  # MF ------
-  message('Missing field: visit id processing')
-  rslt$mf_visitid_preprocess <- mf_visitid_preprocess(results='mf_visitid_output')
-  copy_to_new(df=rslt$mf_visitid_preprocess,
-              name='mf_visitid_pp',
-              temporary = FALSE)
-
-  # PF ------
-  message('Person facts processing')
-  rslt$pf_output_preprocess <- pf_output_preprocess(results='pf_output')
-  copy_to_new(df=rslt$pf_output_preprocess,
-              name='pf_output_pp',
-              temporary = FALSE)
-
-  # FOT ------
-  message('Facts over time processing')
-  rslt$fot_map <- read_codeset('fot_map','cc')
-  output_tbl(rslt$fot_map,
-             'fot_map',
-             indexes=list('domain'))
-  rslt$input_tbl <- results_tbl('fot_output') %>% inner_join(results_tbl('fot_map'),by='check_name')
-
-  fot_list <- fot_check('row_cts',tblx=rslt$input_tbl)
-  output_list_to_db(fot_list, append=FALSE)
-
-  rslt$fot_output_distance <- check_fot_all_dist(fot_list$fot_heuristic_pp)
-  output_tbl(rslt$fot_output_distance,
-             'fot_output_distance_pp',
-             indexes=list('check_name'))
-
-  rslt$fot_output_ratios<-add_fot_ratios(fot_lib_output=results_tbl('fot_output'),
-                                         fot_map=rslt$fot_map,
-                                         denom_mult=10000L)
-  output_tbl(rslt$fot_output_ratios,
-             name='fot_output_mnth_ratio_pp')
+  # Anomaly detection for thresholds ----
+  # no need to run if still have rslt list from driver in environment,
+  # but included here separately in case thresholds run at a different time from processing
   # BMC ----
   message('Best mapped concepts processing')
-  # sending the set of best/not best mapped concepts to the schema
   rslt$bmc_conceptset<-load_codeset('bmc_conceptset', col_types='cci', indexes=list('check_name')) %>%
     inner_join(select(results_tbl('bmc_gen_output'), check_name, check_desc)%>%distinct(),
                by = 'check_name')
-  copy_to_new(df=rslt$bmc_conceptset,
-              name='bmc_conceptset',
-              temporary = FALSE)
   # row-level assignment
   rslt$bmc_concepts <-bmc_assign(bmc_output=results_tbl('bmc_gen_output'),
                                  conceptset=load_codeset('bmc_conceptset', col_types='cci', indexes=list('check_name')))
-
-  output_tbl(rslt$bmc_concepts,
-             name='bmc_gen_output_concepts_pp')
   # computing proportions of best mapped per site/check
   rslt$bmc_pp <- bmc_rollup(rslt$bmc_concepts)
-  output_tbl(rslt$bmc_pp,
-             name='bmc_gen_output_pp')
   ## for thresholds
   rslt$bmc_anom<-compute_dist_anomalies(df_tbl=rslt$bmc_pp%>%filter(include_new==1L),
                                         grp_vars=c('check_name', 'check_desc'),
@@ -224,8 +113,7 @@ suppressPackageStartupMessages(library(methods))
                                     column_analysis = 'best_row_prop',
                                     column_eligible = 'analysis_eligible',
                                     column_variable = 'check_name')
-  output_tbl(rslt$bmc_anom_pp,
-             name='bmc_anom_pp')
+
   # determine this round's thresholds
   rslt$bmc_thresh<-rslt$bmc_anom_pp%>%distinct(check_type, check_name, site,
                                                lower_tail, upper_tail)%>%
@@ -238,14 +126,6 @@ suppressPackageStartupMessages(library(methods))
            check_name_app=paste0(check_name, '_rows'),
            application='rows')%>%
     filter(threshold_operator=='lt')
-
-  # DCON ----
-  message('Domain concordance processing')
-  # overall
-  rslt$dcon_output_pp <- apply_dcon_pp(dcon_tbl=results_tbl('dcon_output'),
-                                            byyr=FALSE)
-  output_tbl(rslt$dcon_output_pp,
-             name='dcon_output_pp')
 
   # ECP ----
   message("ECP processing")
@@ -274,8 +154,110 @@ suppressPackageStartupMessages(library(methods))
            check_name_app=paste0(check_name, '_person'),
            application='person')%>%
     filter(threshold_operator=='lt')
-  output_tbl(rslt$ecp_anom_pp,
-             name='ecp_output_pp')
+
+  # default thresholds -----
+  rslt$thresholds_standard<-format_default_thresholds(std_thresholds=read_codeset('threshold_limits','ccdcc'),
+                                                      anom_thresholds=bind_rows(rslt$bmc_thresh,
+                                                                                rslt$ecp_thresh))
+
+  # no need to output to db because can filter the thresholds history to a certain version
+  # copy_to_new(df=thresholds,
+  #             name='thresholds_pedsnet_standard',
+  #             temporary=FALSE)
+
+  message('Finding previous thresholds')
+  # Find n-1 thresholds for those that should be re-set or stop flagging
+  rslt$redcap_prev <- .qual_tbl(name='dqa_issues_redcap',
+                                schema='dqa_rox',
+                                db=config('db_src_prev'))%>%
+    mutate(threshold_operator=case_when(threshop=='greater than'~'gt',
+                                        threshop=='less than'~'lt'),
+           rc_finalflag=case_when(finalflag=='Continue to flag'~1L,
+                                  finalflag=='Stop flagging'~2L,
+                                  finalflag=='Continue flagging with new threshold'~3L,
+                                  finalflag=='Other'~4L))%>%
+    filter(rc_finalflag%in%c(2L,3L))%>%collect()
+
+  # PATCH for v55: remove in future versions ----
+  # rslt$redcap_prev_nt<-.qual_tbl(name='dqa_all_issues',
+  #                                schema='dqa_rox',
+  #                                db=config('db_src_prev'))%>%
+  #   mutate(rc_finalflag=case_when(finalflag=='Continue to flag'~1L,
+  #                                 finalflag=='Stop flagging'~2L,
+  #                                 finalflag=='Continue flagging with new threshold'~3L,
+  #                                 finalflag=='Other'~4L))%>%
+  #   filter(rc_finalflag%in%c(2L,3L))%>%
+  #   mutate(version_int=as.integer(str_remove(version, "v")))%>%
+  #   group_by(site, check_name_app, threshop)%>%
+  #   filter(version_int==max(version_int))%>%
+  #   ungroup()%>%
+  #   mutate(threshold_operator=case_when(threshop=='greater than'~'gt',
+  #                                       threshop=='less than'~'lt'))%>%
+  #   select(-version_int)%>%collect()
+  # rslt$redcap_prev<-rslt$redcap_prev%>%
+  #   # use most recent threshold over all time
+  #   anti_join(rslt$redcap_prev_nt, by = c('site', 'check_name_app','threshold_operator'))%>%
+  #   dplyr::union_all(rslt$redcap_prev_nt) %>%
+  #   filter(check_name_full!='Domain Concordance')%>%
+  #   mutate(database_version='v55')
+  #----
+
+  # test new threshold assignment
+  rslt$thresholds_history<-results_tbl('thresholds_history_new')%>%collect()
+  rslt$thresholds_this_version<-determine_thresholds(default_thresholds=rslt$thresholds_standard,
+                                                     newset_thresholds=rslt$redcap_prev,
+                                                     history_thresholds=rslt$thresholds_history)
+  # create new "history" table
+  # will have to modify for future
+  # test_history<-results_tbl('thresholds_history_test')%>%filter(database_version!='v55')%>%collect()%>%select(-rc_stop_flag)%>%
+  #   bind_rows(test_thresh_assign)
+  # output_tbl(test_history,
+  #            name='thresholds_history_new')
+
+  # thresholds_prev <- .qual_tbl(name='thresholds',
+  #                              schema='dqa_rox',
+  #                              db=config('db_src_prev'))
+
+  # thresholds_history <- .qual_tbl(name='thresholds_history',
+  #                                 schema='dqa_rox',
+  #                                 db=config('db_src_prev'))
+
+  message('Assigning thresholds for current cycle')
+  # thresholds_this_version <-
+  #   compute_new_thresholds(redcap_tbl=redcap_prev,
+  #                          previous_thresholds=thresholds_prev,
+  #                          threshold_tbl=thresholds,
+  #                          anomaly_tbl = bind_rows(rslt$bmc_thresh,
+  #                                                  rslt$ecp_thresh))
+  #
+  #
+  # copy_to_new(df=thresholds_this_version,
+  #             name='thresholds',
+  #             temporary = FALSE)
+
+  message('Creating table to track threshold versions')
+
+  rslt$thresholds_history_new <- bind_rows(rslt$thresholds_this_version,
+                                           rslt$thresholds_history)
+  output_tbl(thresholds_history_new,
+             name='thresholds_history')
+
+
+
+  message('Create threshold table')
+  rslt$thresholds_applied <- apply_thresholds(check_app_tbl=read_codeset('check_apps', col_types = 'cccccc'),
+                                              threshold_tbl = rslt$thresholds_this_version)
+
+
+  output_list_to_db(rslt$thresholds_applied,
+                    append=FALSE)
+  rslt$threshold_violations <- reduce(.x=rslt$thresholds_applied,
+                                      .f=dplyr::bind_rows)%>%
+    filter(violation&rc_finalflag!=2)
+
+  copy_to_new(df=rslt$threshold_violations,
+              name='threshold_tbl_violations',
+              temporary=FALSE)
 
   message('Done.')
 
@@ -296,7 +278,7 @@ suppressPackageStartupMessages(library(methods))
 #' @return The result of [.run()].
 #' @md
 run_request <- function(base_dir) {
-    base_dir <- .load(base_dir)
-    on.exit(.env_cleanup())
-    .run(base_dir)
+  base_dir <- .load(base_dir)
+  on.exit(.env_cleanup())
+  .run(base_dir)
 }
