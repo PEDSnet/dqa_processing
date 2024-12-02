@@ -5,6 +5,7 @@
   ## Data Cycle Changes
   rslt <- list()
   rslt$dc_ln <- summarize_large_n(dq_output = results_tbl('dc_output_pp') %>%
+                                    select(-c(max_val, min_val, mean_val, median_val))%>%
                                     filter(site != 'total'),
                                   check_string = 'dc',
                                   num_col = 'prop_total_change',
@@ -12,7 +13,8 @@
                                   shape='wide')
 
   output_tbl(rslt$dc_ln %>% bind_rows(results_tbl('dc_output_pp') %>%
-                                    filter(site == 'total') %>% collect()), 'dc_output_ln')
+                                    filter(site == 'total')%>%
+                                      select(-c(max_val, min_val, mean_val, median_val))%>% collect()), 'dc_output_ln')
 
   ## Vocabulary & Valueset Conformance
 

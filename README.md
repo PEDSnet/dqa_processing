@@ -31,13 +31,26 @@ The data is expected to be in the format of the output from the [dqa_library](ht
 
 ### Code Description
 
-All of the processing steps execute through the [driver.R](code/driver.R) file. This code:
+The processing steps are executed through driver.R, driver_thresholds.R, driver_anon.R, and driver_large_n.R, which should be run sequentially. The purposes of each file are:
 
-  1. Establishes thresholds to apply to the DQ output based on standard PEDSnet thresholds or a site-specific threshold that has been established, if one exists.
-  2. Generates and tracks a history of threshold values.
-  3. Generates at least one table for each table output from [dqa_library](https://github.com/PEDSnet/dqa_library), containing a version of the data with post-processing steps applied, and outputs each table with the suffix `pp`.
+[driver](code/driver.R):
+
+- Generates at least one table for each table output from [dqa_library](https://github.com/PEDSnet/dqa_library), containing a version of the data with post-processing steps applied, and outputs each table with the suffix `pp`.
       - The tables with a `pp` suffix are the ones accessed by the dashboard code
-  4. Generates a version of each of the `pp` tables in a format in which the thresholds should be applied and outputs each table with the prefix `thr`.
-  5. Applies the thresholds established in step 1 to the tables generated in step 4 and outputs violations that were not previously indicated as issues to stop raising. An indicator for whether to continue or stop raising a consistent issue across cycles is pulled from the REDCap review form.
-  6. Generates an anonymous site identifier for each site name in the `pp` tables and creates a column in each of the `pp` tables with the anonymous identifier.
+
+[driver_thresholds](code/driver_thresholds.R):
+
+- Establishes thresholds to apply to the DQ output based on standard PEDSnet thresholds or a site-specific threshold that has been established, if one exists.
+- Generates a version of each of the `pp` tables in a format in which the thresholds should be applied and outputs each table with the prefix `thr`.
+- Applies the thresholds established to the tables generated and outputs violations that were not previously indicated as issues to stop raising. An indicator for whether to continue or stop raising a consistent issue across cycles is pulled from the REDCap review form.
+- Generates and tracks a history of threshold values.
+
+  
+[driver_anon](code/driver_anon.R):
+
+- Creates a random site identifier that is consistent across all data output and creates the columns site_anon (char) and sitenum (int) in each of the `pp` tables.
+
+[driver_large_n](code/driver_large_n.R):
+
+- Computes summary statistics for each of the tables and outputs tables suffixed `ln` that contain the output in a readable format for the dashboard. Contains the masked identifiers if it is run downstream of driver_anon.R
 

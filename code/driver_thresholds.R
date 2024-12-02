@@ -174,14 +174,16 @@ suppressPackageStartupMessages(library(methods))
     filter(rc_finalflag%in%c(2L,3L))%>%collect()
 
   # this is the table in the v55 schema, but starting in v57, point to thresholds_history instead
-  rslt$thresholds_history<-results_tbl('thresholds_history_new')%>%collect()
+  rslt$thresholds_history<-.qual_tbl(name='thresholds_history_new',
+                                     schema='dqa_rox',
+                                     db=config('db_src_prev'))%>%collect()
   rslt$thresholds_this_version<-determine_thresholds(default_thresholds=rslt$thresholds_standard,
                                                      newset_thresholds=rslt$redcap_prev,
                                                      history_thresholds=rslt$thresholds_history)
   message('Creating table to track threshold versions')
   rslt$thresholds_history_new <- bind_rows(rslt$thresholds_this_version,
                                            rslt$thresholds_history)
-  output_tbl(thresholds_history_new,
+  output_tbl(rslt$thresholds_history_new,
              name='thresholds_history')
 
   message('Create threshold table')
@@ -193,7 +195,7 @@ suppressPackageStartupMessages(library(methods))
                     append=FALSE)
   rslt$threshold_violations <- reduce(.x=rslt$thresholds_applied,
                                       .f=dplyr::bind_rows)%>%
-    filter(violation&rc_finalflag!=2)
+    filter(violation&(is.na(rc_finalflag)|rc_finalflag!=2))
 
   copy_to_new(df=rslt$threshold_violations,
               name='threshold_tbl_violations',
