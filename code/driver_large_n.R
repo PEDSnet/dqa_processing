@@ -2,10 +2,9 @@
 
 .run  <- function(base_dir = config('base_dir')) {
 
-  ## Data Cycle Changes
+  ## Data Cycle Changes ----
   rslt <- list()
   rslt$dc_ln <- summarize_large_n(dq_output = results_tbl('dc_output_pp') %>%
-                                    select(-c(max_val, min_val, mean_val, median_val))%>%
                                     filter(site != 'total'),
                                   check_string = 'dc',
                                   num_col = 'prop_total_change',
@@ -16,7 +15,7 @@
                                     filter(site == 'total')%>%
                                       select(-c(max_val, min_val, mean_val, median_val))%>% collect()), 'dc_output_ln')
 
-  ## Vocabulary & Valueset Conformance
+  ## Vocabulary & Valueset Conformance ----
 
   rslt$vs_ln <- summarize_large_n(dq_output = results_tbl('vs_output_pp') %>%
                                       filter(site != 'total'),
@@ -39,7 +38,7 @@
   output_tbl(rslt$vc_ln,
              'vc_output_ln')
 
-  ## Unmapped Concepts
+  ## Unmapped Concepts ----
 
   rslt$uc_ln <- summarize_large_n(dq_output = results_tbl('uc_output_pp') %>%
                                     filter(site != 'total'),
@@ -62,7 +61,7 @@
   output_tbl(rslt$uc_by_yr_ln %>% bind_rows(results_tbl('uc_by_year_pp') %>%
                                       filter(site == 'total') %>% collect()), 'uc_by_year_ln')
 
-  ## Person Facts
+  ## Person Facts ----
 
   ### person level
   rslt$pf_person_ln <- summarize_large_n(dq_output = results_tbl('pf_output_pp') %>%
@@ -94,7 +93,7 @@
 
   output_tbl(rslt$pf_final_ln, 'pf_output_ln')
 
-  ## Best Mapped Concepts
+  ## Best Mapped Concepts ----
 
   rslt$bmc_ln <- summarize_large_n(dq_output = results_tbl('bmc_gen_output_pp') %>%
                                      filter(site != 'total'),
@@ -107,7 +106,7 @@
                                           filter(site == 'total') %>% collect()),
              'bmc_gen_output_ln')
 
-  ## Domain Concordance
+  ## Domain Concordance ----
 
   rslt$dcon_ln <- summarize_large_n(dq_output = results_tbl('dcon_output_pp') %>%
                                             filter(site != 'total'),
@@ -120,7 +119,7 @@
   output_tbl(rslt$dcon_ln %>% bind_rows(results_tbl('dcon_output_pp') %>%
                                     filter(site == 'total') %>% collect()), 'dcon_output_ln')
 
-  ## MF VisitID
+  ## MF VisitID ----
 
   rslt$mf_visitid_ln <- summarize_large_n(dq_output = results_tbl('mf_visitid_pp') %>%
                                             filter(site != 'total'),
@@ -132,7 +131,7 @@
   output_tbl(rslt$mf_visitid_ln %>% bind_rows(results_tbl('mf_visitid_pp') %>%
                                       filter(site == 'total') %>% collect()), 'mf_visitid_ln')
 
-  ## Expected Concepts Present
+  ## Expected Concepts Present ----
 
   rslt$ecp_ln <- summarize_large_n(dq_output = results_tbl('ecp_output_pp') %>%
                                      filter(site != 'total'),
@@ -144,6 +143,5 @@
   output_tbl(rslt$ecp_ln %>% bind_rows(results_tbl('ecp_output_pp') %>%
                                             filter(site == 'total') %>% collect()), 'ecp_output_ln')
 
-  ## Facts Over Time
 
 }
