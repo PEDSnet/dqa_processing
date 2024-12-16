@@ -116,10 +116,12 @@ vc_process<-function(results){
   results_tbl(results) %>%
     mutate(prop_total_viol=as.numeric(total_viol_ct/total_denom_ct),
            prop_total_pt_viol=as.numeric(total_viol_pt_ct/total_pt_ct)) %>%
-    group_by(site, table_application, measurement_column, vocabulary_id, check_type, check_name, total_denom_ct, accepted_value) %>%
+    group_by(site, table_application, measurement_column, vocabulary_id, check_type, check_name, total_denom_ct, total_concept_ct, accepted_value) %>%
     summarise(tot_ct = sum(total_viol_ct),
-              tot_prop = sum(prop_total_viol)) %>%
-    ungroup()
+              tot_prop = sum(prop_total_viol),
+              tot_dist_concept_ct=sum(total_viol_concept_ct)) %>%
+    ungroup()%>%
+    mutate(tot_dist_concept_prop=tot_dist_concept_ct/total_concept_ct)
 }
 
 
