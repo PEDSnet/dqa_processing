@@ -129,9 +129,9 @@ suppressPackageStartupMessages(library(methods))
   message('Vocabulary conformance')
   # VC ----
   # SWITCH this to point to the regular vc_output table for prod version
-  rslt$vc_pp<-vc_process('vc_output_v56test')
+  rslt$vc_pp<-vc_process('vc_output')
   output_tbl(rslt$vc_pp,
-             name='vc_output_pp_v56test')
+             name='vc_output_pp')
   # copy_to_new(df=rslt$vc_vs_output_preprocess,
   #             name='vc_vs_output_pp',
   #             temporary = FALSE)

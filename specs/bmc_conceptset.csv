@@ -437,3 +437,15 @@ bmc_adt_service,NICU,
 bmc_adt_service,Unknown,0
 bmc_adt_service,Other,0
 bmc_adt_service,No Information,0
+bmc_fips_tract,0,0
+bmc_fips_tract,12,0
+bmc_fips_tract,11,
+bmc_fips_tract,10,0
+bmc_fips_tract,9,0
+bmc_fips_tract,5,0
+bmc_fips_block_group,0,0
+bmc_fips_block_group,12,
+bmc_fips_block_group,11,0
+bmc_fips_block_group,10,0
+bmc_fips_block_group,9,0
+bmc_fips_block_group,5,0
