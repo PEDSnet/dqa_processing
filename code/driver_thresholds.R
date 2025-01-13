@@ -105,7 +105,7 @@ suppressPackageStartupMessages(library(methods))
   rslt$bmc_pp <- bmc_rollup(rslt$bmc_concepts)
   ## for thresholds
   rslt$bmc_anom<-compute_dist_anomalies(df_tbl=rslt$bmc_pp%>%filter(include_new==1L),
-                                        grp_vars=c('check_name', 'check_desc'),
+                                        grp_vars=c('check_name', 'check_desc', 'check_type'),
                                         var_col='best_row_prop')
   rslt$bmc_anom_pp<-detect_outliers(df_tbl=rslt$bmc_anom,
                                     tail_input = 'both',
