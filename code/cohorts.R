@@ -659,14 +659,28 @@ bmc_rollup <- function(bmc_output_pp,
                            check_domains=read_codeset('check_domains', col_types='ccccc')){
   # find proportions of best mapped for each site
   bmc_sites <- bmc_output_pp %>%
-    #filter(include_new==1L)%>%
-    group_by(across(c(site, include_new, check_type, database_version, starts_with("check_name"), check_desc, check_desc_short, total_rows, starts_with("threshold"))))%>%
+    group_by(across(c(site, include_new, check_type, database_version, starts_with("check_name"), check_desc, check_desc_short, total_rows)))%>%
     summarise(best_rows=sum(concept_rows)) %>%
     ungroup()%>%
     mutate(best_row_prop=best_rows/total_rows)
 
+  # finding instances where no best mapped rows in table for site
+  bmc_no_sites <- bmc_sites %>%
+    group_by(across(c(site, check_type, database_version, starts_with("check_name"), check_desc, check_desc_short, total_rows)))%>%
+    summarise(include_new=max(include_new)) %>%
+    ungroup()%>%
+    filter(include_new==0L)%>%
+    mutate(best_rows=0L,
+           best_row_prop=0,
+           include_new=1L)
+
+  # put together all of the site-level info
+  bmc_all <- bmc_sites %>%
+    bind_rows(bmc_no_sites)
+
+
   # add up site counts to get overall proportions
-  bmc_overall <- bmc_sites %>%
+  bmc_overall <- bmc_all %>%
     filter(include_new==1L)%>%
     group_by(check_type, database_version, check_name, check_desc, check_desc_short)%>%
     summarise(best_rows=sum(best_rows),
@@ -676,22 +690,20 @@ bmc_rollup <- function(bmc_output_pp,
            site='total')
 
   # finding instances where no best mapped rows in a table
-  sites <- bmc_sites %>% distinct(site)
-  check_domains <- bmc_sites %>% distinct(check_type, check_name, check_desc, check_desc_short)
-  sites_and_checks <- sites %>% cross_join(check_domains)
+  # sites <- bmc_sites %>% distinct(site)
+  # check_domains <- bmc_sites %>% distinct(check_type, check_name, check_desc, check_desc_short)
+  # sites_and_checks <- sites %>% cross_join(check_domains)
+  #
+  # site_no_bmc <- sites_and_checks%>%
+  #   anti_join(bmc_sites, by = c('site', 'check_name'))%>%
+  #   mutate(best_rows=0,
+  #          best_row_prop=0,
+  #          database_version=config('current_version'),
+  #          include_new=1L)
 
-  site_no_bmc <- sites_and_checks%>%
-    anti_join(bmc_sites, by = c('site', 'check_name'))%>%
-    mutate(best_rows=0,
-           best_row_prop=0,
-           database_version=config('current_version'),
-           include_new=1L)
 
-
-  bind_rows(bmc_sites, bmc_overall)%>%
-    bind_rows(., site_no_bmc)%>%
+  bind_rows(bmc_all, bmc_overall)%>%
     mutate(check_name_app=paste0(check_name, "_rows"))
-
 
 }
 

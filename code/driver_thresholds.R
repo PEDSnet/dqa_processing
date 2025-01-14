@@ -91,32 +91,11 @@ suppressPackageStartupMessages(library(methods))
   rslt <- list()
 
   # Anomaly detection for thresholds ----
-  # no need to run if still have rslt list from driver in environment,
-  # but included here separately in case thresholds run at a different time from processing
   # BMC ----
-  message('Best mapped concepts processing')
-  rslt$bmc_conceptset<-load_codeset('bmc_conceptset', col_types='cci', indexes=list('check_name')) %>%
-    inner_join(select(results_tbl('bmc_gen_output'), check_name, check_desc)%>%distinct(),
-               by = 'check_name')
-  # row-level assignment
-  rslt$bmc_concepts <-bmc_assign(bmc_output=results_tbl('bmc_gen_output'),
-                                 conceptset=load_codeset('bmc_conceptset', col_types='cci', indexes=list('check_name')))
-  # computing proportions of best mapped per site/check
-  rslt$bmc_pp <- bmc_rollup(rslt$bmc_concepts)
-  ## for thresholds
-  rslt$bmc_anom<-compute_dist_anomalies(df_tbl=rslt$bmc_pp%>%filter(include_new==1L),
-                                        grp_vars=c('check_name', 'check_desc', 'check_type'),
-                                        var_col='best_row_prop')
-  rslt$bmc_anom_pp<-detect_outliers(df_tbl=rslt$bmc_anom,
-                                    tail_input = 'both',
-                                    p_input = 0.9,
-                                    column_analysis = 'best_row_prop',
-                                    column_eligible = 'analysis_eligible',
-                                    column_variable = 'check_name')
-
-  # determine this round's thresholds
-  rslt$bmc_thresh<-rslt$bmc_anom_pp%>%distinct(check_type, check_name, site,
+  message('BMC anomaly thresholds')
+  rslt$bmc_thresh<-results_tbl('bmc_anom_pp')%>%distinct(check_type, check_name, site,
                                                lower_tail, upper_tail)%>%
+    collect()%>%
     pivot_longer(cols=c(lower_tail, upper_tail),
                  names_to="threshold_operator",
                  values_to="threshold",
@@ -128,22 +107,8 @@ suppressPackageStartupMessages(library(methods))
     filter(threshold_operator=='lt')
 
   # ECP ----
-  message("ECP processing")
-  rslt$ecp_process <- results_tbl('ecp_output') %>%
-    mutate(check_name_app=paste0(check_name, '_person'))%>%
-    collect()
-  # flag anomalies
-  rslt$ecp_anom<-compute_dist_anomalies(df_tbl=rslt$ecp_process,
-                                        grp_vars=c('check_name'),
-                                        var_col='prop_with_concept')
-  rslt$ecp_anom_pp<-detect_outliers(df_tbl=rslt$ecp_anom,
-                                    tail_input = 'both',
-                                    p_input = 0.9,
-                                    column_analysis = 'prop_with_concept',
-                                    column_eligible = 'analysis_eligible',
-                                    column_variable = 'check_name')
-  # determine this round's thresholds
-  rslt$ecp_thresh<-rslt$ecp_anom_pp%>%distinct(check_type, check_name, site,
+  message("ECP anomaly thresholds")
+  rslt$ecp_thresh<-results_tbl('ecp_output_pp')%>%distinct(check_type, check_name, site,
                                                lower_tail, upper_tail)%>%
     pivot_longer(cols=c(lower_tail, upper_tail),
                  names_to="threshold_operator",
@@ -153,7 +118,8 @@ suppressPackageStartupMessages(library(methods))
                                         threshold_operator=='upper_tail'~'gt'),
            check_name_app=paste0(check_name, '_person'),
            application='person')%>%
-    filter(threshold_operator=='lt')
+    filter(threshold_operator=='lt')%>%
+    collect()
 
   # default thresholds -----
   rslt$thresholds_standard<-format_default_thresholds(std_thresholds=read_codeset('threshold_limits','ccdcc'),

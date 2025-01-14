@@ -112,11 +112,9 @@ suppressPackageStartupMessages(library(methods))
   copy_to_new(df=rslt$dc_pp_plot,
               name='dc_output_pp',
               temporary = FALSE)
-
+  # VS ----
   message('Value set processing')
   # by vocabulary_id
-  # rslt$vc_vs_output_preprocess <- vc_vs_violations_preprocess(results='vc_vs_violations')
-  # VS
   rslt$vs_pp<-vs_process('vs_output')
   output_tbl(rslt$vs_pp,
              name='vs_output_pp')
@@ -125,25 +123,15 @@ suppressPackageStartupMessages(library(methods))
   output_tbl(rslt$vs_violations_pp,
              name='vs_violations_pp')
 
-
-  message('Vocabulary conformance')
   # VC ----
-  # SWITCH this to point to the regular vc_output table for prod version
+  message('Vocabulary conformance')
   rslt$vc_pp<-vc_process('vc_output')
   output_tbl(rslt$vc_pp,
              name='vc_output_pp')
-  # copy_to_new(df=rslt$vc_vs_output_preprocess,
-  #             name='vc_vs_output_pp',
-  #             temporary = FALSE)
-  # by check_name_app
+
   rslt$vc_violations_pp<-vc_vs_rollup(rslt$vc_pp)
   output_tbl(rslt$vc_violations_pp,
              name='vc_violations_pp')
-
-  # rslt$vc_vs_violations_pp <- vc_vs_rollup(pp_output = rslt$vc_vs_output_preprocess)
-  # copy_to_new(df=rslt$vc_vs_violations_pp,
-  #             name='vc_vs_violations_pp',
-  #             temporary=FALSE)
 
   # UC ------
   message('Unmapped concepts processing')
@@ -215,9 +203,9 @@ suppressPackageStartupMessages(library(methods))
   rslt$bmc_pp <- bmc_rollup(rslt$bmc_concepts)
   output_tbl(rslt$bmc_pp,
              name='bmc_gen_output_pp')
-  ## for thresholds
+  ## flag anomalies (to be used in driver_thresholds)
   rslt$bmc_anom<-compute_dist_anomalies(df_tbl=rslt$bmc_pp%>%filter(include_new==1L),
-                                        grp_vars=c('check_name', 'check_desc'),
+                                        grp_vars=c('check_name', 'check_desc', 'check_type'),
                                         var_col='best_row_prop')
   rslt$bmc_anom_pp<-detect_outliers(df_tbl=rslt$bmc_anom,
                                     tail_input = 'both',
@@ -227,18 +215,6 @@ suppressPackageStartupMessages(library(methods))
                                     column_variable = 'check_name')
   output_tbl(rslt$bmc_anom_pp,
              name='bmc_anom_pp')
-  # determine this round's thresholds
-  rslt$bmc_thresh<-rslt$bmc_anom_pp%>%distinct(check_type, check_name, site,
-                                               lower_tail, upper_tail)%>%
-    pivot_longer(cols=c(lower_tail, upper_tail),
-                 names_to="threshold_operator",
-                 values_to="threshold",
-                 values_drop_na=TRUE)%>%
-    mutate(threshold_operator=case_when(threshold_operator=='lower_tail'~'lt',
-                                        threshold_operator=='upper_tail'~'gt'),
-           check_name_app=paste0(check_name, '_rows'),
-           application='rows')%>%
-    filter(threshold_operator=='lt')
 
   # DCON ----
   message('Domain concordance processing')
@@ -253,7 +229,7 @@ suppressPackageStartupMessages(library(methods))
   rslt$ecp_process <- results_tbl('ecp_output') %>%
     mutate(check_name_app=paste0(check_name, '_person'))%>%
     collect()
-  # flag anomalies
+  # flag anomalies (to be used in driver_thresholds)
   rslt$ecp_anom<-compute_dist_anomalies(df_tbl=rslt$ecp_process,
                                         grp_vars=c('check_name'),
                                         var_col='prop_with_concept')
@@ -263,18 +239,6 @@ suppressPackageStartupMessages(library(methods))
                                     column_analysis = 'prop_with_concept',
                                     column_eligible = 'analysis_eligible',
                                     column_variable = 'check_name')
-  # determine this round's thresholds
-  rslt$ecp_thresh<-rslt$ecp_anom_pp%>%distinct(check_type, check_name, site,
-                                               lower_tail, upper_tail)%>%
-    pivot_longer(cols=c(lower_tail, upper_tail),
-                 names_to="threshold_operator",
-                 values_to="threshold",
-                 values_drop_na=TRUE)%>%
-    mutate(threshold_operator=case_when(threshold_operator=='lower_tail'~'lt',
-                                        threshold_operator=='upper_tail'~'gt'),
-           check_name_app=paste0(check_name, '_person'),
-           application='person')%>%
-    filter(threshold_operator=='lt')
   output_tbl(rslt$ecp_anom_pp,
              name='ecp_output_pp')
 

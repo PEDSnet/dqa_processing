@@ -117,7 +117,7 @@ config('retain_intermediates', NA)
 #' during processing of the request.
 #' If it is `NA`, the default value from site_info.R is used.
 #' @md
-config('results_schema', 'dqa_rox_dev')
+config('results_schema', 'dqa_rox')
 
 
 #' when processing a new site
