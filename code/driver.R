@@ -115,11 +115,11 @@ suppressPackageStartupMessages(library(methods))
   # VS ----
   message('Value set processing')
   # by vocabulary_id
-  rslt$vs_pp<-vs_process('vs_output')
+  rslt$vs_pp<-vs_process('vs_output') %>% collect()
   output_tbl(rslt$vs_pp,
              name='vs_output_pp')
   # by check_name_app
-  rslt$vs_violations_pp<-vc_vs_rollup(rslt$vs_pp) %>% collect()
+  rslt$vs_violations_pp<-vc_vs_rollup(rslt$vs_pp)
   output_tbl(rslt$vs_violations_pp,
              name='vs_violations_pp')
 
