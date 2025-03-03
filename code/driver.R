@@ -119,13 +119,13 @@ suppressPackageStartupMessages(library(methods))
   output_tbl(rslt$vs_pp,
              name='vs_output_pp')
   # by check_name_app
-  rslt$vs_violations_pp<-vc_vs_rollup(rslt$vs_pp)
+  rslt$vs_violations_pp<-vc_vs_rollup(rslt$vs_pp) %>% collect()
   output_tbl(rslt$vs_violations_pp,
              name='vs_violations_pp')
 
   # VC ----
   message('Vocabulary conformance')
-  rslt$vc_pp<-vc_process('vc_output')
+  rslt$vc_pp<-vc_process('vc_output') %>% collect()
   output_tbl(rslt$vc_pp,
              name='vc_output_pp')
 
@@ -169,7 +169,7 @@ suppressPackageStartupMessages(library(methods))
   output_tbl(rslt$fot_map,
              'fot_map',
              indexes=list('domain'))
-  rslt$input_tbl <- results_tbl('fot_output') %>% inner_join(results_tbl('fot_map'),by='check_name')
+  rslt$input_tbl <- results_tbl('fot_output') %>% inner_join(results_tbl('fot_map'),by='check_name') %>% compute_new()
 
   fot_list <- fot_check('row_cts',tblx=rslt$input_tbl)
   output_list_to_db(fot_list, append=FALSE)

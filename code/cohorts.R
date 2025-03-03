@@ -169,7 +169,7 @@ uc_process <- function(results){
               unmapped_rows=sum(unmapped_rows))%>%
     ungroup() %>%
     mutate(site='total',
-           unmapped_prop=unmapped_rows/total_rows)
+           unmapped_prop=unmapped_rows/total_rows) %>% compute_new()
 
   total_uc %>%
     dplyr::union_all(results_tbl(results))%>%
@@ -196,7 +196,7 @@ mf_visitid_preprocess <- function(results) {
         measure == "prescription or inpatient drugs" ~ "drug_exposure",
         measure == "all procedures" ~ "procedures",
         measure == "all labs" ~ "measurement_labs",
-        measure == "all immunizations" ~ "immunization"))
+        measure == "all immunizations" ~ "immunization")) %>% collect()
   # compute overall counts for mf_visitid check
   test_mf_overall <- test_mf %>%
     group_by(domain, measure, check_type, database_version, check_name) %>%
@@ -207,7 +207,7 @@ mf_visitid_preprocess <- function(results) {
               total_id=sum(total_id),
               total_ct=sum(total_ct)) %>%
     ungroup()%>%
-    mutate(site = 'total')
+    mutate(site = 'total') %>% collect()
 
   # compute proportions
   test_mf %>%
@@ -624,7 +624,7 @@ bmc_assign <- function(bmc_output,
     filter(!is.na(include))%>%
     select(check_name, include)%>%
     distinct()%>%
-    rename(count_best=include) # probably can remove this in the future if the concept set only has ones we want to count/not count
+    rename(count_best=include) %>% compute_new() # probably can remove this in the future if the concept set only has ones we want to count/not count
 
   bmc_w_best <- bmc_output %>%
     inner_join(best_designation, by = 'check_name')%>%
