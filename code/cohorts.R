@@ -169,7 +169,8 @@ uc_process <- function(results){
               unmapped_rows=sum(unmapped_rows))%>%
     ungroup() %>%
     mutate(site='total',
-           unmapped_prop=unmapped_rows/total_rows) %>% compute_new()
+           unmapped_prop=unmapped_rows/total_rows,
+           unmapped_prop=ifelse(is.na(unmapped_prop), 0, unmapped_prop)) %>% compute_new()
 
   total_uc %>%
     dplyr::union_all(results_tbl(results))%>%
@@ -282,7 +283,9 @@ pf_output_preprocess <- function(results) {
 #'previous year
 fot_check_calc <- function(tblx, site_col,time_col, target_col) {
   tblx %>%
-    window_order(!!sym(site_col),!!sym(time_col)) %>%
+    collect() %>%
+    # window_order(!!sym(site_col),!!sym(time_col)) %>%
+    arrange(!!sym(site_col),!!sym(time_col)) %>%
     mutate(
       lag_1 = lag(!!sym(target_col)),
       lag_1_plus = lag(!!sym(target_col),-1),
@@ -310,12 +313,12 @@ fot_check <- function(target_col,
   agg_check <- tblx %>% group_by(domain, !!sym(time_col),!!sym(check_col), !!sym(check_desc)) %>%
     summarise({{target_col}} := sum(!!sym(target_col))) %>%
     ungroup() %>%
-    mutate({{site_col}}:='all')
+    mutate({{site_col}}:='all') %>% compute_new()
 
   for (target_check in tblx %>% select(!!sym(check_col)) %>% distinct() %>% pull()) {
     for (target_site in tblx %>% select(!!sym(site_col)) %>% distinct() %>% pull()) {
       foo <- fot_check_calc(tblx %>%
-                              filter(check_name==target_check & site==target_site),
+                              filter(check_name==target_check & site==target_site) %>% compute_new(),
                             site_col='site',
                             time_col,
                             target_col) %>% collect()
@@ -325,7 +328,7 @@ fot_check <- function(target_col,
         rv <- foo
       }
     }
-    bar <- fot_check_calc(agg_check %>% filter(check_name==target_check),
+    bar <- fot_check_calc(agg_check %>% filter(check_name==target_check) %>% compute_new(),
                           site_col,time_col,target_col) %>%
       select(cols_to_keep) %>% collect()
     if(!is.logical(rv_agg)){
