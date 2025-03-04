@@ -164,16 +164,17 @@ uc_by_year_preprocess <- function(results) {
 #' @return table with additional columns/etc needed for pp output
 uc_process <- function(results){
   total_uc<-results_tbl(results) %>%
+    collect() %>%
     group_by(measure, check_type, database_version, check_name) %>%
-    summarise(total_rows=sum(total_rows),
-              unmapped_rows=sum(unmapped_rows))%>%
+    summarise(total_rows=sum(total_rows, na.rm = TRUE),
+              unmapped_rows=sum(unmapped_rows, na.rm = TRUE))%>%
     ungroup() %>%
     mutate(site='total',
            unmapped_prop=unmapped_rows/total_rows,
-           unmapped_prop=ifelse(is.na(unmapped_prop), 0, unmapped_prop)) %>% compute_new()
+           unmapped_prop=ifelse(is.na(unmapped_prop), 0, unmapped_prop))
 
   total_uc %>%
-    dplyr::union_all(results_tbl(results))%>%
+    dplyr::union_all(results_tbl(results) %>% collect())%>%
     mutate(check_name_app=paste0(check_name,"_rows"))
 }
 
@@ -288,10 +289,10 @@ fot_check_calc <- function(tblx, site_col,time_col, target_col) {
     arrange(!!sym(site_col),!!sym(time_col)) %>%
     mutate(
       lag_1 = lag(!!sym(target_col)),
-      lag_1_plus = lag(!!sym(target_col),-1),
+      lag_1_plus = lead(!!sym(target_col),1),
       lag_12 = lag(!!sym(target_col),12),
       check_denom_stupid = (lag(!!sym(target_col))*.25 +
-                              lag(!!sym(target_col),-1)*.25 +
+                              lead(!!sym(target_col),1)*.25 +
                               lag(!!sym(target_col),12)*.5)) %>%
     filter(check_denom_stupid!=0) %>%
     mutate(check = !!sym(target_col)/check_denom_stupid-1)
