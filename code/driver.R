@@ -228,10 +228,14 @@ suppressPackageStartupMessages(library(methods))
   message("ECP processing")
   rslt$ecp_process <- results_tbl('ecp_output') %>%
     mutate(check_name_app=paste0(check_name, '_person'))%>%
-    collect()
+    collect()%>%
+    left_join(read_codeset('ecp_cat', col_types='cc'))%>%
+    mutate(check_cat=case_when(is.na(check_cat)~'other',
+                               TRUE~check_cat))
+
   # flag anomalies (to be used in driver_thresholds)
   rslt$ecp_anom<-compute_dist_anomalies(df_tbl=rslt$ecp_process,
-                                        grp_vars=c('check_name'),
+                                        grp_vars=c('check_name', 'check_cat'),
                                         var_col='prop_with_concept')
   rslt$ecp_anom_pp<-detect_outliers(df_tbl=rslt$ecp_anom,
                                     tail_input = 'both',
