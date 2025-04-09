@@ -151,9 +151,16 @@ config('local_name_tag', '_op_1510')
 #' * `distribution` - Production version for distribution to remote sites
 #' @md
 config('execution_mode', 'development')
+#' Place to write results
+#'
+#' * `file` - Write output to CSV files in `results` directory
+#' * TRUE - Write output to config('db_src')
+#' * DBI data source - Write output to database
+config('results_target',
+       if (config('execution_mode') == 'distribution') 'file' else TRUE)
 #' current_version should match the most recent db version
-config('current_version','v56')
-config('previous_version','v55')
+config('current_version','v57')
+config('previous_version','v56')
 #' Request-specific debug output for database operations
 #'
 #' This Boolean value specifies whether the query log should include
