@@ -872,6 +872,11 @@ detect_outliers <- function(df_tbl,
 #'        and the value of the most extreme `prop_total_change` that is NOT an outlier
 #'              if the original value is an outlier
 dc_suppress_outlier<-function(tbl){
+  # case where no outliers
+  if(!'lower_tail'%in%colnames(tbl)){
+    tbl_return<-tbl%>%
+      mutate(plot_prop=prop_total_change)
+  }else{
   all_bounds<-tbl%>%filter(!is.na(lower_tail),!is.na(upper_tail))%>%
     distinct(check_name, application, lower_tail,upper_tail)
   tbl_ranked<-tbl%>%
@@ -883,11 +888,13 @@ dc_suppress_outlier<-function(tbl){
   total_bounds<-tbl%>%filter(site=='total')%>%select(-upper_tail, -lower_tail)%>%
     inner_join(all_bounds, by = c('check_name','application'))
 
-  tbl%>%filter(site!='total')%>%
+  tbl_return<-tbl%>%filter(site!='total')%>%
     bind_rows(total_bounds)%>%
     left_join(tbl_ranked, by = 'application')%>%
     mutate(plot_prop=case_when((anomaly_yn=='outlier'|site=='total')&prop_total_change<lower_tail~min_not_outlier,
                                    (anomaly_yn=='outlier'|site=='total')&prop_total_change>upper_tail~max_not_outlier,
                                    TRUE~prop_total_change))%>%
     select(-c(min_not_outlier, max_not_outlier))
+  }
+  return(tbl_return)
 }
