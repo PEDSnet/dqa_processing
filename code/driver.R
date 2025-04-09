@@ -51,6 +51,8 @@ suppressPackageStartupMessages(library(methods))
                         'analyze_.+\\.R', full.names = TRUE))
       source(fn)
     source(file.path(here, config('subdirs')$code_dir, 'cohorts.R'))
+  source(file.path(here, config('subdirs')$code_dir, 'shims.R'))
+
 
     .env_setup()
 
@@ -136,9 +138,8 @@ suppressPackageStartupMessages(library(methods))
   # UC ------
   message('Unmapped concepts processing')
   rslt$uc_preprocess <- uc_process(results='uc_output')
-  copy_to_new(df=rslt$uc_preprocess,
-              name='uc_output_pp',
-              temporary = FALSE)
+  output_tbl(rslt$uc_preprocess,
+              name='uc_output_pp')
 
   rslt$uc_by_year_preprocess <- uc_by_year_preprocess(results='uc_by_year')
   copy_to_new(df=rslt$uc_by_year_preprocess,
