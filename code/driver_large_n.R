@@ -137,7 +137,7 @@
                                      filter(site != 'total'),
                                    check_string = 'ecp',
                                    num_col = 'prop_with_concept',
-                                   grp_vars = c('concept_group', 'check_name', 'check_name_app'),
+                                   grp_vars = c('concept_group', 'check_name', 'check_name_app','cohort_denominator'),
                                    shape="wide")
 
   output_tbl(rslt$ecp_ln %>% bind_rows(results_tbl('ecp_output_pp') %>%
