@@ -164,15 +164,17 @@ uc_by_year_preprocess <- function(results) {
 #' @return table with additional columns/etc needed for pp output
 uc_process <- function(results){
   total_uc<-results_tbl(results) %>%
+    collect() %>%
     group_by(measure, check_type, database_version, check_name) %>%
-    summarise(total_rows=sum(total_rows),
-              unmapped_rows=sum(unmapped_rows))%>%
+    summarise(total_rows=sum(total_rows, na.rm = TRUE),
+              unmapped_rows=sum(unmapped_rows, na.rm = TRUE))%>%
     ungroup() %>%
     mutate(site='total',
-           unmapped_prop=unmapped_rows/total_rows)
+           unmapped_prop=unmapped_rows/total_rows,
+           unmapped_prop=ifelse(is.na(unmapped_prop), 0, unmapped_prop))
 
   total_uc %>%
-    dplyr::union_all(results_tbl(results))%>%
+    dplyr::union_all(results_tbl(results) %>% collect())%>%
     mutate(check_name_app=paste0(check_name,"_rows"))
 }
 
@@ -196,7 +198,7 @@ mf_visitid_preprocess <- function(results) {
         measure == "prescription or inpatient drugs" ~ "drug_exposure",
         measure == "all procedures" ~ "procedures",
         measure == "all labs" ~ "measurement_labs",
-        measure == "all immunizations" ~ "immunization"))
+        measure == "all immunizations" ~ "immunization")) %>% collect()
   # compute overall counts for mf_visitid check
   test_mf_overall <- test_mf %>%
     group_by(domain, measure, check_type, database_version, check_name) %>%
@@ -207,7 +209,7 @@ mf_visitid_preprocess <- function(results) {
               total_id=sum(total_id),
               total_ct=sum(total_ct)) %>%
     ungroup()%>%
-    mutate(site = 'total')
+    mutate(site = 'total') %>% collect()
 
   # compute proportions
   test_mf %>%
@@ -282,13 +284,15 @@ pf_output_preprocess <- function(results) {
 #'previous year
 fot_check_calc <- function(tblx, site_col,time_col, target_col) {
   tblx %>%
-    window_order(!!sym(site_col),!!sym(time_col)) %>%
+    collect() %>%
+    # window_order(!!sym(site_col),!!sym(time_col)) %>%
+    arrange(!!sym(site_col),!!sym(time_col)) %>%
     mutate(
       lag_1 = lag(!!sym(target_col)),
-      lag_1_plus = lag(!!sym(target_col),-1),
+      lag_1_plus = lead(!!sym(target_col),1),
       lag_12 = lag(!!sym(target_col),12),
       check_denom_stupid = (lag(!!sym(target_col))*.25 +
-                              lag(!!sym(target_col),-1)*.25 +
+                              lead(!!sym(target_col),1)*.25 +
                               lag(!!sym(target_col),12)*.5)) %>%
     filter(check_denom_stupid!=0) %>%
     mutate(check = !!sym(target_col)/check_denom_stupid-1)
@@ -310,12 +314,12 @@ fot_check <- function(target_col,
   agg_check <- tblx %>% group_by(domain, !!sym(time_col),!!sym(check_col), !!sym(check_desc)) %>%
     summarise({{target_col}} := sum(!!sym(target_col))) %>%
     ungroup() %>%
-    mutate({{site_col}}:='all')
+    mutate({{site_col}}:='all') %>% compute_new()
 
   for (target_check in tblx %>% select(!!sym(check_col)) %>% distinct() %>% pull()) {
     for (target_site in tblx %>% select(!!sym(site_col)) %>% distinct() %>% pull()) {
       foo <- fot_check_calc(tblx %>%
-                              filter(check_name==target_check & site==target_site),
+                              filter(check_name==target_check & site==target_site) %>% compute_new(),
                             site_col='site',
                             time_col,
                             target_col) %>% collect()
@@ -325,7 +329,7 @@ fot_check <- function(target_col,
         rv <- foo
       }
     }
-    bar <- fot_check_calc(agg_check %>% filter(check_name==target_check),
+    bar <- fot_check_calc(agg_check %>% filter(check_name==target_check) %>% compute_new(),
                           site_col,time_col,target_col) %>%
       select(cols_to_keep) %>% collect()
     if(!is.logical(rv_agg)){
@@ -624,7 +628,7 @@ bmc_assign <- function(bmc_output,
     filter(!is.na(include))%>%
     select(check_name, include)%>%
     distinct()%>%
-    rename(count_best=include) # probably can remove this in the future if the concept set only has ones we want to count/not count
+    rename(count_best=include) %>% compute_new() # probably can remove this in the future if the concept set only has ones we want to count/not count
 
   bmc_w_best <- bmc_output %>%
     inner_join(best_designation, by = 'check_name')%>%
