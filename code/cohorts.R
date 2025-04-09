@@ -242,7 +242,7 @@ pf_output_preprocess <- function(results) {
   pf_totals <- results_tbl(results) %>%
     # mutate(check_name=case_when(check_name=='pf_dr'~'pf_visits_dr',
     #                             TRUE~check_name))%>%
-    group_by(check_description, check_name) %>%
+    group_by(check_description, check_name, visit_type) %>%
     summarise(no_fact_visits=sum(no_fact_visits),
               no_fact_pts=sum(no_fact_pts),
               total_visits=sum(total_visits),
@@ -261,12 +261,13 @@ pf_output_preprocess <- function(results) {
 
   # have to collect to bind rows since total columns may be missing site-specific things (e.g. thresholds)
    bind_rows(rslt_collect,pf_totals)%>%
-     mutate(visit_type = case_when(str_detect(check_description, "^long_ip")~'long_inpatient',
-                                   str_detect(check_description, "^ip")~ 'inpatient',
-                                   str_detect(check_description, "^all")~'all',
-                                   str_detect(check_description, "^op")~'outpatient',
-                                   str_detect(check_description, "^ed")~'emergency'),
-            check_description=str_remove(check_description, "^long_ip_|^ip_|^all_|^op_|^ed_")) %>%
+     # as of v57, visit_type is now in the library output
+     # mutate(visit_type = case_when(str_detect(check_description, "^long_ip")~'long_inpatient',
+     #                               str_detect(check_description, "^ip")~ 'inpatient',
+     #                               str_detect(check_description, "^all")~'all',
+     #                               str_detect(check_description, "^op")~'outpatient',
+     #                               str_detect(check_description, "^ed")~'emergency'),
+     #        check_description=str_remove(check_description, "^long_ip_|^ip_|^all_|^op_|^ed_")) %>%
      mutate(check_description= case_when(check_description=='all_visits_with_procs_drugs_labs' ~ 'visits_with_procs_drugs_labs',
                                          TRUE ~ check_description))%>%
      mutate(check_name_app=paste0(check_name, "_visits"),
