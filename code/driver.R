@@ -159,7 +159,9 @@ suppressPackageStartupMessages(library(methods))
 
   # PF ------
   message('Person facts processing')
-  rslt$pf_output_preprocess <- pf_output_preprocess(results='pf_output')
+  rslt$pf_output_preprocess <- pf_output_preprocess(results='pf_output')%>%
+    # patch for v57 only
+    mutate(check_name=paste0(check_name, "_", visit_type))
   copy_to_new(df=rslt$pf_output_preprocess,
               name='pf_output_pp',
               temporary = FALSE)

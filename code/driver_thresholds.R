@@ -104,7 +104,8 @@ suppressPackageStartupMessages(library(methods))
                                         threshold_operator=='upper_tail'~'gt'),
            check_name_app=paste0(check_name, '_rows'),
            application='rows')%>%
-    filter(threshold_operator=='lt')
+    filter(threshold_operator=='lt')%>%
+    mutate(threshold=round(threshold,2))
 
   # ECP ----
   message("ECP anomaly thresholds")
@@ -119,12 +120,29 @@ suppressPackageStartupMessages(library(methods))
            check_name_app=paste0(check_name, '_person'),
            application='person')%>%
     filter(threshold_operator=='lt')%>%
-    collect()
+    collect()%>%
+    mutate(threshold=round(threshold,2))
 
   # default thresholds -----
   rslt$thresholds_standard<-format_default_thresholds(std_thresholds=read_codeset('threshold_limits','ccdcc'),
                                                       anom_thresholds=bind_rows(rslt$bmc_thresh,
                                                                                 rslt$ecp_thresh))
+  # identify any checks without thresholds
+  # rslt$thresholds_missing<-find_missing_thresholds(check_app_tbl=read_codeset('check_apps', col_types = 'cccccc'),
+  #                                                  thresholds_current=rslt$thresholds_standard)
+  # rslt$thresholds_missing_named<-results_tbl('dqa_check_metadata')%>%
+  #   right_join(rslt$thresholds_missing, by = 'check_name',copy=TRUE)%>%
+  #   collect()%>%
+  #   mutate(check_type=case_when(str_detect(check_name,'pf')~'Patient Facts/Records',
+  #                               TRUE~check_type),
+  #          check_name=case_when(str_detect(check_name, 'pf')~paste0(check_name, '_cancelled'),
+  #                               TRUE~check_name))%>%
+  #   mutate(check_name_app=case_when(str_detect(check_name, 'pf')~paste0(check_name, '_visits'),
+  #                                   TRUE~check_name_app))%>%
+  #   select(check_type, check_name, check_name_app, full_description)%>%
+  #   output_tbl(name='thresholds_new_v57',
+  #              file=TRUE,
+  #              db=FALSE)
 
   message('Finding previous thresholds')
   # Find n-1 thresholds for those that should be re-set or stop flagging
@@ -139,10 +157,17 @@ suppressPackageStartupMessages(library(methods))
                                   finalflag=='Other'~4L))%>%
     filter(rc_finalflag%in%c(2L,3L))%>%collect()
 
-  # this is the table in the v55 schema, but starting in v57, point to thresholds_history instead
-  rslt$thresholds_history<-.qual_tbl(name='thresholds_history_new',
+  rslt$thresholds_history<-.qual_tbl(name='thresholds_history',
                                      schema='dqa_rox',
-                                     db=config('db_src_prev'))%>%collect()
+                                     db=config('db_src_prev'))%>%collect()%>%
+    # v57-specific patch to pf check_name (format changed in v57)
+    left_join(read_codeset('pf_checkname_patch_v57', col_types='cc'),
+              by=c('check_name'='check_name_prev'))%>%
+    mutate(check_name_app=case_when(!is.na(check_name_new)&
+                                      check_type=='pf'~paste0(check_name_new,"_visits"),
+                                    TRUE~check_name_app),
+           check_name=coalesce(check_name_new, check_name))%>%
+    select(-check_name_new)
   rslt$thresholds_this_version<-determine_thresholds(default_thresholds=rslt$thresholds_standard,
                                                      newset_thresholds=rslt$redcap_prev,
                                                      history_thresholds=rslt$thresholds_history)

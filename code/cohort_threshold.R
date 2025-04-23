@@ -373,7 +373,9 @@ pull_dqa_table_names_post <- function(schema_name=config('results_schema')) {
 
  #' Function to apply thresholds to a list of post-processed tables
  #' @param check_app_tbl table with (at least) the columns:
- #'                        tbl_name_post: name of post-processed table as it exists in the results schema. This table should contain a `check_name_app` column by which it will be joined to the thresholds
+ #'                        tbl_name_post: name of post-processed table as it exists in the results schema.
+ #'                               This table should contain a `check_name_app` column by which it will be
+ #'                               joined to the thresholds
  #'                        col_filter: name of column to filter thresholding on (can be NULL)
  #'                        col_filter_value: value in the `col_filter` field on which to filter results
  #' @param threshold_tbl table with (at least) the columns:
@@ -501,3 +503,31 @@ determine_thresholds<-function(default_thresholds,
     bind_rows(default_thresholds)
 }
 
+find_missing_thresholds<-function(check_app_tbl,
+                                  thresholds_current){
+
+  tbls_to_apply<-check_app_tbl %>%
+    # if BMC or ECP have records without thresholds, it is because anomaly detection could not be performed
+    filter(!tbl_name_post%in%c('ecp_output_pp','bmc_anom_pp'))%>%
+    select(tbl_name_post) %>%
+    pull()
+
+  tbls_all <- list()
+
+  for(i in 1:length(tbls_to_apply)) {
+
+    string_name<-tbls_to_apply[i]
+    tbl_dq_post <- results_tbl(string_name)
+    # join final table to the thresholds
+    tbl_check_apps <- tbl_dq_post %>%
+      distinct(check_name_app, check_name)%>%
+      anti_join(thresholds_current, by = 'check_name_app', copy=TRUE)%>%
+      collect()
+    if(nrow(tbl_check_apps)>0){
+      tbls_all[[paste0("thr_",string_name)]] <- tbl_check_apps}
+
+  }
+  reduce(.x=tbls_all,
+         .f=dplyr::bind_rows)
+
+}
