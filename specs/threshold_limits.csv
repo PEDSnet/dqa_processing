@@ -198,7 +198,5 @@ dc,dc_sp,-0.05,lt,rows
 vc,vc_pr_pscid,0.05,gt,rows
 uc,uc_vpc,0.1,gt,rows
 uc,uc_vpt,0.1,gt,rows
-dcon_pts,dcon_flu_dx_flu_pos_lab,,,concordance
-dcon_pts,dcon_flu_dx_flu_neg_lab,,,concordance
-dcon_pts,dcon_rsv_dx_rsv_pos_lab,,,concordance
-dcon_pts,dcon_rsv_dx_rsv_neg_lab,,,concordance
+dcon_pts,dcon_flu_pos_lab_flu_dx,0.65,lt,concordance
+dcon_pts,dcon_rsv_pos_lab_rsv_dx,0.65,lt,concordance
