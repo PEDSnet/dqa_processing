@@ -155,7 +155,11 @@ suppressPackageStartupMessages(library(methods))
                                   finalflag=='Stop flagging'~2L,
                                   finalflag=='Continue flagging with new threshold'~3L,
                                   finalflag=='Other'~4L))%>%
+    # keep flagging geocodes (for v57 only)
+    mutate(rc_finalflag=case_when(check_name%in%c('ecp_block_group_2020','ecp_tract_2020')~1L,
+                                  TRUE~rc_finalflag))%>%
     filter(rc_finalflag%in%c(2L,3L))%>%collect()
+
 
   rslt$thresholds_history<-.qual_tbl(name='thresholds_history',
                                      schema='dqa_rox',
