@@ -222,7 +222,31 @@ suppressPackageStartupMessages(library(methods))
   # DCON ----
   message('Domain concordance processing')
   # overall
-  rslt$dcon_output_pp <- apply_dcon_pp(dcon_tbl=results_tbl('dcon_output'),
+  rslt$dcon_output_pre_pp<-results_tbl('dcon_output')%>%
+    # switch cohort classifications for dx + lab checks
+    mutate(cohort=case_when(check_name%in%c('dcon_flu_dx_flu_neg_lab',
+                                            'dcon_flu_dx_flu_pos_lab',
+                                            'dcon_rsv_dx_rsv_neg_lab',
+                                            'dcon_rsv_dx_rsv_pos_lab')&
+                              cohort=='cohort_1'~'cohort_2',
+                            check_name%in%c('dcon_flu_dx_flu_neg_lab',
+                                            'dcon_flu_dx_flu_pos_lab',
+                                            'dcon_rsv_dx_rsv_neg_lab',
+                                            'dcon_rsv_dx_rsv_pos_lab')&
+                              cohort=='cohort_2'~'cohort_1',
+                            TRUE~cohort),
+           # change check_name and check_desc to match swapped names
+           check_name=case_when(check_name=='dcon_flu_dx_flu_neg_lab'~'dcon_flu_neg_lab_flu_dx',
+                                check_name=='dcon_flu_dx_flu_pos_lab'~'dcon_flu_pos_lab_flu_dx',
+                                check_name=='dcon_rsv_dx_rsv_neg_lab'~'dcon_rsv_neg_lab_rsv_dx',
+                                check_name=='dcon_rsv_dx_rsv_pos_lab'~'dcon_rsv_pos_lab_rsv_dx',
+                                TRUE~check_name),
+           check_desc=case_when(check_desc=='flu_dx_flu_neg_lab'~'flu_neg_lab_flu_dx',
+                                check_desc=='rsv_dx_rsv_pos_lab'~'flu_pos_lab_flu_dx',
+                                check_desc=='rsv_dx_rsv_neg_lab'~'rsv_neg_lab_rsv_dx',
+                                check_desc=='rsv_dx_rsv_pos_lab'~'rsv_pos_lab_rsv_dx',
+                                TRUE~check_desc))
+  rslt$dcon_output_pp <- apply_dcon_pp(dcon_tbl=rslt$dcon_output_pre_pp,
                                             byyr=FALSE)
   output_tbl(rslt$dcon_output_pp,
              name='dcon_output_pp')
