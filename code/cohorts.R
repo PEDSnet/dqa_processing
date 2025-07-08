@@ -268,7 +268,8 @@ pf_output_preprocess <- function(results) {
      #                               str_detect(check_description, "^op")~'outpatient',
      #                               str_detect(check_description, "^ed")~'emergency'),
      #        check_description=str_remove(check_description, "^long_ip_|^ip_|^all_|^op_|^ed_")) %>%
-     mutate(check_description= case_when(check_description=='all_visits_with_procs_drugs_labs' ~ 'visits_with_procs_drugs_labs',
+     mutate(check_name=paste0(check_name, "_", visit_type),
+            check_description= case_when(check_description=='all_visits_with_procs_drugs_labs' ~ 'visits_with_procs_drugs_labs',
                                          TRUE ~ check_description))%>%
      mutate(check_name_app=paste0(check_name, "_visits"),
             check_desc_neat=str_remove(check_description, "visits_with_|_visits"))

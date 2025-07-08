@@ -159,9 +159,7 @@ suppressPackageStartupMessages(library(methods))
 
   # PF ------
   message('Person facts processing')
-  rslt$pf_output_preprocess <- pf_output_preprocess(results='pf_output')%>%
-    # patch for v57 only
-    mutate(check_name=paste0(check_name, "_", visit_type))
+  rslt$pf_output_preprocess <- pf_output_preprocess(results='pf_output')
   copy_to_new(df=rslt$pf_output_preprocess,
               name='pf_output_pp',
               temporary = FALSE)
@@ -242,7 +240,7 @@ suppressPackageStartupMessages(library(methods))
                                 check_name=='dcon_rsv_dx_rsv_pos_lab'~'dcon_rsv_pos_lab_rsv_dx',
                                 TRUE~check_name),
            check_desc=case_when(check_desc=='flu_dx_flu_neg_lab'~'flu_neg_lab_flu_dx',
-                                check_desc=='rsv_dx_rsv_pos_lab'~'flu_pos_lab_flu_dx',
+                                check_desc=='flu_dx_flu_pos_lab'~'flu_pos_lab_flu_dx',
                                 check_desc=='rsv_dx_rsv_neg_lab'~'rsv_neg_lab_rsv_dx',
                                 check_desc=='rsv_dx_rsv_pos_lab'~'rsv_pos_lab_rsv_dx',
                                 TRUE~check_desc))
