@@ -91,8 +91,10 @@ dc_preprocess <- function(results) {
 #'            tot_prop: sum of proportion of all values for that vs
 vs_process<-function(results){
   results_tbl(results) %>%
-    mutate(prop_total_viol=as.numeric(total_viol_ct/total_denom_ct),
-           prop_total_pt_viol=as.numeric(total_viol_pt_ct/total_pt_ct)) %>%
+    mutate(prop_total_viol=case_when(total_denom_ct==0~0,
+                                     TRUE~as.numeric(total_viol_ct/total_denom_ct)),
+           prop_total_pt_viol=case_when(total_pt_ct==0~0,
+                                        TRUE~as.numeric(total_viol_pt_ct/total_pt_ct))) %>%
     group_by(site, table_application, measurement_column, vocabulary_id, check_type, check_name, total_denom_ct, accepted_value) %>%
     summarise(tot_ct = sum(total_viol_ct),
               tot_prop = sum(prop_total_viol)) %>%
@@ -224,13 +226,13 @@ mf_visitid_preprocess <- function(results) {
 }
 
 
-#' function to add total counts by check_description
+#' function to add total counts by check_desc
 #'
-#' @param results pf_output results tbl
+#' @param results cfd_output results tbl
 #'
-#' @return pf_output tbl with additional total counts
+#' @return cfd_output tbl with additional total counts
 
-pf_output_preprocess <- function(results) {
+cfd_output_preprocess <- function(results) {
 
   rslt_collect<-results_tbl(results)%>%collect()
   # %>%
@@ -239,10 +241,10 @@ pf_output_preprocess <- function(results) {
 
   db_version<-config('current_version')
 
-  pf_totals <- results_tbl(results) %>%
+  cfd_totals <- results_tbl(results) %>%
     # mutate(check_name=case_when(check_name=='pf_dr'~'pf_visits_dr',
     #                             TRUE~check_name))%>%
-    group_by(check_description, check_name, visit_type) %>%
+    group_by(check_desc, check_name, visit_type) %>%
     summarise(no_fact_visits=sum(no_fact_visits),
               no_fact_pts=sum(no_fact_pts),
               total_visits=sum(total_visits),
@@ -251,7 +253,7 @@ pf_output_preprocess <- function(results) {
               fact_pts=sum(fact_pts)) %>%
     ungroup()%>%
     mutate(site='total',
-           check_type='pf',
+           check_type='cfd',
            database_version=db_version)%>%
     mutate(no_fact_visits_prop=round(no_fact_visits/total_visits,2),
            no_fact_pts_prop=round(no_fact_pts/total_pts,2),
@@ -260,18 +262,9 @@ pf_output_preprocess <- function(results) {
     collect()
 
   # have to collect to bind rows since total columns may be missing site-specific things (e.g. thresholds)
-   bind_rows(rslt_collect,pf_totals)%>%
-     # as of v57, visit_type is now in the library output
-     # mutate(visit_type = case_when(str_detect(check_description, "^long_ip")~'long_inpatient',
-     #                               str_detect(check_description, "^ip")~ 'inpatient',
-     #                               str_detect(check_description, "^all")~'all',
-     #                               str_detect(check_description, "^op")~'outpatient',
-     #                               str_detect(check_description, "^ed")~'emergency'),
-     #        check_description=str_remove(check_description, "^long_ip_|^ip_|^all_|^op_|^ed_")) %>%
-     mutate(check_description= case_when(check_description=='all_visits_with_procs_drugs_labs' ~ 'visits_with_procs_drugs_labs',
-                                         TRUE ~ check_description))%>%
+   bind_rows(rslt_collect,cfd_totals)%>%
      mutate(check_name_app=paste0(check_name, "_visits"),
-            check_desc_neat=str_remove(check_description, "visits_with_|_visits"))
+            check_desc_neat=str_remove(check_desc, "visits_with_|_visits"))
 
 }
 
@@ -369,7 +362,7 @@ fot_check <- function(target_col,
 #' @param fot_check_output first element of list output from `fot_check`
 #'
 #' @return tbl with the following columns:
-#' domain | check_name | month_end | centroid | site | check | distance
+#' domain | check_name | time_start | centroid | site | check | distance
 #'
 #' The `distance` column measures, for each site/domain/check/month combination,
 #' the distance between the site's normalized `check` output compared to
@@ -390,7 +383,7 @@ check_fot_all_dist <- function(fot_check_output) {
       fot_check_output,
       by=c('domain',
            'check_name',
-           'month_end',
+           'time_start',
            'check_desc')
     ) %>% mutate(
       distance=round(check,3)-round(centroid,3)
@@ -664,14 +657,14 @@ bmc_rollup <- function(bmc_output_pp,
                            check_domains=read_codeset('check_domains', col_types='ccccc')){
   # find proportions of best mapped for each site
   bmc_sites <- bmc_output_pp %>%
-    group_by(across(c(site, include_new, check_type, database_version, starts_with("check_name"), check_desc, check_desc_short, total_rows)))%>%
+    group_by(across(c(site, include_new, check_type, database_version, starts_with("check_name"), check_desc, total_rows)))%>%
     summarise(best_rows=sum(concept_rows)) %>%
     ungroup()%>%
     mutate(best_row_prop=best_rows/total_rows)
 
   # finding instances where no best mapped rows in table for site
   bmc_no_sites <- bmc_sites %>%
-    group_by(across(c(site, check_type, database_version, starts_with("check_name"), check_desc, check_desc_short, total_rows)))%>%
+    group_by(across(c(site, check_type, database_version, starts_with("check_name"), check_desc, total_rows)))%>%
     summarise(include_new=max(include_new)) %>%
     ungroup()%>%
     filter(include_new==0L)%>%
@@ -687,7 +680,7 @@ bmc_rollup <- function(bmc_output_pp,
   # add up site counts to get overall proportions
   bmc_overall <- bmc_all %>%
     filter(include_new==1L)%>%
-    group_by(check_type, database_version, check_name, check_desc, check_desc_short)%>%
+    group_by(check_type, database_version, check_name, check_desc)%>%
     summarise(best_rows=sum(best_rows),
               total_rows=sum(total_rows))%>%
     ungroup()%>%

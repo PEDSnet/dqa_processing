@@ -157,22 +157,23 @@ suppressPackageStartupMessages(library(methods))
               name='mf_visitid_pp',
               temporary = FALSE)
 
-  # PF ------
-  message('Person facts processing')
-  rslt$pf_output_preprocess <- pf_output_preprocess(results='pf_output')
-  copy_to_new(df=rslt$pf_output_preprocess,
-              name='pf_output_pp',
+  #CFD ------
+  message('Clinical fact documentation processing')
+  rslt$cfd_output_preprocess <- cfd_output_preprocess(results='cfd_output')
+  copy_to_new(df=rslt$cfd_output_preprocess,
+              name='cfd_output_pp',
               temporary = FALSE)
 
   # FOT ------
   message('Facts over time processing')
-  rslt$fot_map <- read_codeset('fot_map','cc')
-  output_tbl(rslt$fot_map,
-             'fot_map',
-             indexes=list('domain'))
-  rslt$input_tbl <- results_tbl('fot_output') %>% inner_join(results_tbl('fot_map'),by='check_name') %>% compute_new()
+  #rslt$fot_map <- read_codeset('fot_map','cc')
+  #output_tbl(rslt$fot_map,
+             # 'fot_map',
+             # indexes=list('domain'))
+  #rslt$input_tbl <- results_tbl('fot_output') %>% inner_join(results_tbl('fot_map'),by='check_name') %>% compute_new()
 
-  fot_list <- fot_check('row_cts',tblx=rslt$input_tbl)
+  #fot_list <- fot_check('row_cts',tblx=rslt$input_tbl)
+  fot_list<- fot_check('row_cts',tblx=results_tbl('fot_output'))
   output_list_to_db(fot_list, append=FALSE)
 
   rslt$fot_output_distance <- check_fot_all_dist(fot_list$fot_heuristic_pp)
@@ -195,11 +196,11 @@ suppressPackageStartupMessages(library(methods))
               name='bmc_conceptset',
               temporary = FALSE)
   # row-level assignment
-  rslt$bmc_concepts <-bmc_assign(bmc_output=results_tbl('bmc_gen_output'),
-                                 conceptset=load_codeset('bmc_conceptset', col_types='cci', indexes=list('check_name')))
+  rslt$bmc_concepts <-bmc_assign(bmc_output=results_tbl('bmc_output'),
+                                 conceptset=results_tbl('bmc_concepts')%>%select(-old_check_name))#load_codeset('bmc_concepts', col_types='cci', indexes=list('check_name')))
 
   output_tbl(rslt$bmc_concepts,
-             name='bmc_gen_output_concepts_pp')
+             name='bmc_output_concepts_pp')
   # computing proportions of best mapped per site/check
   rslt$bmc_pp <- bmc_rollup(rslt$bmc_concepts)
   output_tbl(rslt$bmc_pp,

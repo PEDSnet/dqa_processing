@@ -89,6 +89,40 @@ suppressPackageStartupMessages(library(methods))
           config('framework_version'))
 
   rslt <- list()
+  # V58: Rename thresholds file
+  thresh_old_patched<-read_codeset('threshold_limits','ccdcc')%>%
+    mutate(check_type=case_when(check_type=='pf'~'cfd',
+                                TRUE~check_type),
+           check_name=str_replace(check_name, 'pf', 'cfd'))%>%
+    mutate(check_name=case_when(check_name=='dcon_pts_ckd-dx_htn-rx'~'dcon_ckd_dx_htn_rx',
+                                check_name=='dcon_ed_visits_conds'~'dcon_ED_visits_ED_conds',
+                                check_name=='dcon_ip_visits_conds'~'dcon_IP_visits_IP_conds',
+                                check_name=='dcon_op_visits_conds'~'dcon_OP_visits_OP_conds',
+                                check_name=='cfd_prdf_emergency'~'cfd_prdr_emergency',
+           TRUE~check_name))
+  name_xwalk<-results_tbl('dqa_check_descriptions')%>%select(old_check_name, check_name)%>%
+    mutate(check_name=case_when(check_name=='scp_labssodium'~'ecp_labssodium',
+                                TRUE~check_name))%>%
+    collect()
+  old_not_new<-thresh_old_patched%>%anti_join(name_xwalk, by = c('check_name'='old_check_name'))
+  new_not_old<-name_xwalk%>%anti_join(thresh_old_patched, by = c('old_check_name'='check_name'))
+  # --- USE THIS to get from old to new check_name + check_application ----
+  threshold_map<-thresh_old_patched%>%
+    inner_join(name_xwalk%>%rename(check_name_new=check_name),
+               by=c('check_name'='old_check_name'))%>%
+    rename(check_name_old=check_name)%>%
+    mutate(check_name_app_old=paste0(check_name_old, "_", application),
+           check_name_app_new=paste0(check_name_new, "_", application))
+  new_th_names<-thresh_old_patched%>%
+    inner_join(name_xwalk%>%rename(check_name_new=check_name),
+               by=c('check_name'='old_check_name'))%>%
+    select(-check_name)%>%
+    rename(check_name=check_name_new)%>%
+    select(check_type, check_name, application, threshold, threshold_operator)
+  output_tbl(new_th_names,
+             name='thresholds_v58',
+             file=TRUE,
+             db=FALSE)
 
   # Anomaly detection for thresholds ----
   # BMC ----
@@ -108,7 +142,7 @@ suppressPackageStartupMessages(library(methods))
 
   # ECP ----
   message("ECP anomaly thresholds")
-  rslt$ecp_thresh<-results_tbl('ecp_output_pp')%>%distinct(check_type, check_name, site,
+  rslt$ecp_thresh<-results_tbl('ecp_anom_pp')%>%distinct(check_type, check_name, site,
                                                lower_tail, upper_tail)%>%
     pivot_longer(cols=c(lower_tail, upper_tail),
                  names_to="threshold_operator",
@@ -122,7 +156,8 @@ suppressPackageStartupMessages(library(methods))
     collect()
 
   # default thresholds -----
-  rslt$thresholds_standard<-format_default_thresholds(std_thresholds=read_codeset('threshold_limits','ccdcc'),
+  # v58-specific patch
+  rslt$thresholds_standard<-format_default_thresholds(std_thresholds=read_codeset('thresholds_v58', 'cccdc'),
                                                       anom_thresholds=bind_rows(rslt$bmc_thresh,
                                                                                 rslt$ecp_thresh))
 
@@ -138,11 +173,37 @@ suppressPackageStartupMessages(library(methods))
                                   finalflag=='Continue flagging with new threshold'~3L,
                                   finalflag=='Other'~4L))%>%
     filter(rc_finalflag%in%c(2L,3L))%>%collect()
+  # -- nothing meets this so no need to carry forward...
 
-  # this is the table in the v55 schema, but starting in v57, point to thresholds_history instead
-  rslt$thresholds_history<-.qual_tbl(name='thresholds_history_new',
+  rslt$thresholds_history<-.qual_tbl(name='thresholds_history',
                                      schema='dqa_rox',
-                                     db=config('db_src_prev'))%>%collect()
+                                     db=config('db_src_prev'))%>%collect()%>%
+    mutate(check_name=str_replace(check_name, 'pf', 'cfd'),
+           check_name_app=str_replace(check_name_app, 'pf', 'cfd'))%>%
+    mutate(check_name=case_when(check_name=='dcon_pts_ckd-dx_htn-rx'~'dcon_ckd_dx_htn_rx',
+                                check_name=='dcon_ed_visits_conds'~'dcon_ED_visits_ED_conds',
+                                check_name=='dcon_ip_visits_conds'~'dcon_IP_visits_IP_conds',
+                                check_name=='dcon_op_visits_conds'~'dcon_OP_visits_OP_conds',
+                                check_name=='cfd_prdf_emergency'~'cfd_prdr_emergency',
+                                TRUE~check_name),
+           check_name_app=case_when(check_name=='dcon_ckd_dx_htn_rx'~'dcon_ckd_dx_htn_rx_concordance',
+                                    check_name=='dcon_ED_visits_ED_conds'~'dcon_ED_visits_ED_conds_concordance',
+                                    check_name=='dcon_IP_visits_IP_conds'~'dcon_IP_visits_IP_conds_concordance',
+                                    check_name=='dcon_OP_visits_OP_conds'~'dcon_OP_visits_OP_conds_concordance',
+                                    check_name=='cfd_prdr_emergency'~'cfd_prdr_emergency_visits',
+                                    TRUE~check_name_app))%>%
+    mutate(check_app=str_extract(check_name_app,".*_(.*)",group=1))%>%
+    rename(old_check_name=check_name)%>%
+    left_join(name_xwalk%>%rename(check_name_new=check_name), by = 'old_check_name', copy=TRUE)%>%
+  # the only ones missing are vc_so_scid and bmc_vo_spec - carry forward but not flagged newly
+    mutate(check_name=coalesce(check_name_new, old_check_name),
+           check_type=case_when(check_type=='pf'~'cfd',
+                                TRUE~check_type))%>%
+    select(-c(check_name_app,check_name_new, old_check_name))%>%
+    mutate(check_name_app=paste0(check_name, "_", check_app))%>%
+    select(-check_app)
+
+
   rslt$thresholds_this_version<-determine_thresholds(default_thresholds=rslt$thresholds_standard,
                                                      newset_thresholds=rslt$redcap_prev,
                                                      history_thresholds=rslt$thresholds_history)
@@ -159,6 +220,10 @@ suppressPackageStartupMessages(library(methods))
 
   output_list_to_db(rslt$thresholds_applied,
                     append=FALSE)
+  output_tbl(rslt$thresholds_applied$thr_mf_visitid_output_pp_rows,
+             name='thr_mf_visitid_output_pp_rows',
+             file=FALSE,
+             db=TRUE)
   rslt$threshold_violations <- reduce(.x=rslt$thresholds_applied,
                                       .f=dplyr::bind_rows)%>%
     filter(violation&(is.na(rc_finalflag)|rc_finalflag!=2))

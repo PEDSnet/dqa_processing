@@ -159,8 +159,8 @@ config('execution_mode', 'development')
 config('results_target',
        if (config('execution_mode') == 'distribution') 'file' else TRUE)
 #' current_version should match the most recent db version
-config('current_version','v57')
-config('previous_version','v56')
+config('current_version','v58')
+config('previous_version','v57')
 #' Request-specific debug output for database operations
 #'
 #' This Boolean value specifies whether the query log should include
