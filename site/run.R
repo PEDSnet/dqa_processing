@@ -117,7 +117,7 @@ config('retain_intermediates', NA)
 #' during processing of the request.
 #' If it is `NA`, the default value from site_info.R is used.
 #' @md
-config('results_schema', 'dqa_rox')
+config('results_schema', 'dqa_rox_dev')
 
 
 #' when processing a new site
@@ -159,8 +159,8 @@ config('execution_mode', 'development')
 config('results_target',
        if (config('execution_mode') == 'distribution') 'file' else TRUE)
 #' current_version should match the most recent db version
-config('current_version','v58')
-config('previous_version','v57')
+config('current_version','v59')
+config('previous_version','v58')
 #' Request-specific debug output for database operations
 #'
 #' This Boolean value specifies whether the query log should include

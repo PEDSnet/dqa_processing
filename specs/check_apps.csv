@@ -9,3 +9,4 @@ cfd_output,cfd_output_pp,visits,fact_visits_prop,,
 bmc_gen_output,bmc_anom_pp,rows,best_row_prop,analysis_eligible,yes
 dcon_output,dcon_output_pp,concordance,prop,cohort,cohort_2_in_1
 ecp_output,ecp_anom_pp,person,prop_with_concept,analysis_eligible,yes
+dp_output,dp_anom_pp,rows,prop_implausible,analysis_eligible,yes

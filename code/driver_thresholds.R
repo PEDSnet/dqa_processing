@@ -123,10 +123,21 @@ suppressPackageStartupMessages(library(methods))
              name='thresholds_v58',
              file=TRUE,
              db=FALSE)
+  # v59
+  thresholds_v59<-read_codeset('thresholds_v58','cccdc')%>%
+    rename(check_name_v58=check_name)%>%
+    left_join(results_tbl('new_name_adjusts_v59')%>%collect(),
+              by = c('check_name_v58'='new_name'))%>%
+    mutate(check_name=coalesce(fixed_new_name, check_name_v58))%>%
+    select(check_type, check_name, application, threshold, threshold_operator)
+  write_csv(thresholds_v59,
+            file.path(getwd(),'specs','thresholds_v59.csv'))
+
 
   # Anomaly detection for thresholds ----
   # BMC ----
   message('BMC anomaly thresholds')
+  # doesnt work yet because no outliers
   rslt$bmc_thresh<-results_tbl('bmc_anom_pp')%>%distinct(check_type, check_name, site,
                                                lower_tail, upper_tail)%>%
     collect()%>%
@@ -156,8 +167,8 @@ suppressPackageStartupMessages(library(methods))
     collect()
 
   # default thresholds -----
-  # v58-specific patch
-  rslt$thresholds_standard<-format_default_thresholds(std_thresholds=read_codeset('thresholds_v58', 'cccdc'),
+  # v59-specific patch
+  rslt$thresholds_standard<-format_default_thresholds(std_thresholds=read_codeset('thresholds_v59', 'cccdc'),
                                                       anom_thresholds=bind_rows(rslt$bmc_thresh,
                                                                                 rslt$ecp_thresh))
 
@@ -175,33 +186,18 @@ suppressPackageStartupMessages(library(methods))
     filter(rc_finalflag%in%c(2L,3L))%>%collect()
   # -- nothing meets this so no need to carry forward...
 
+  # use this mod for v59!
   rslt$thresholds_history<-.qual_tbl(name='thresholds_history',
                                      schema='dqa_rox',
                                      db=config('db_src_prev'))%>%collect()%>%
-    mutate(check_name=str_replace(check_name, 'pf', 'cfd'),
-           check_name_app=str_replace(check_name_app, 'pf', 'cfd'))%>%
-    mutate(check_name=case_when(check_name=='dcon_pts_ckd-dx_htn-rx'~'dcon_ckd_dx_htn_rx',
-                                check_name=='dcon_ed_visits_conds'~'dcon_ED_visits_ED_conds',
-                                check_name=='dcon_ip_visits_conds'~'dcon_IP_visits_IP_conds',
-                                check_name=='dcon_op_visits_conds'~'dcon_OP_visits_OP_conds',
-                                check_name=='cfd_prdf_emergency'~'cfd_prdr_emergency',
-                                TRUE~check_name),
-           check_name_app=case_when(check_name=='dcon_ckd_dx_htn_rx'~'dcon_ckd_dx_htn_rx_concordance',
-                                    check_name=='dcon_ED_visits_ED_conds'~'dcon_ED_visits_ED_conds_concordance',
-                                    check_name=='dcon_IP_visits_IP_conds'~'dcon_IP_visits_IP_conds_concordance',
-                                    check_name=='dcon_OP_visits_OP_conds'~'dcon_OP_visits_OP_conds_concordance',
-                                    check_name=='cfd_prdr_emergency'~'cfd_prdr_emergency_visits',
-                                    TRUE~check_name_app))%>%
-    mutate(check_app=str_extract(check_name_app,".*_(.*)",group=1))%>%
-    rename(old_check_name=check_name)%>%
-    left_join(name_xwalk%>%rename(check_name_new=check_name), by = 'old_check_name', copy=TRUE)%>%
-  # the only ones missing are vc_so_scid and bmc_vo_spec - carry forward but not flagged newly
-    mutate(check_name=coalesce(check_name_new, old_check_name),
-           check_type=case_when(check_type=='pf'~'cfd',
-                                TRUE~check_type))%>%
-    select(-c(check_name_app,check_name_new, old_check_name))%>%
-    mutate(check_name_app=paste0(check_name, "_", check_app))%>%
-    select(-check_app)
+    rename(check_name_v58=check_name)%>%
+    left_join(results_tbl('new_name_adjusts_v59')%>%collect(), by = c('check_name_v58'='new_name'))%>%
+    mutate(check_app=str_extract(check_name_app,".*_(.*)",group=1),
+           check_name=coalesce(fixed_new_name, check_name_v58),
+           check_name_app_new=paste0(check_name, "_", check_app))%>%
+    select(check_type, check_name_app_new, check_name, threshold_operator, database_version,
+           site, threshold, rc_finalflag)%>%
+    rename(check_name_app=check_name_app_new)
 
 
   rslt$thresholds_this_version<-determine_thresholds(default_thresholds=rslt$thresholds_standard,

@@ -463,9 +463,12 @@ output_list_to_db <- function(output_list,
   } else {
 
     for(i in 1:length(output_list)) {
-
+      num_rows_tbl<-output_list[[i]]%>%summarise(n=n())%>%ungroup()
+      if(num_rows_tbl==0){print(paste0('Table ', names(output_list[i]), ' has no rows, skipping'))
+        }else{
       output_tbl(data=output_list[[i]],
                  name=names(output_list[i]))
+        }
 
     }
 

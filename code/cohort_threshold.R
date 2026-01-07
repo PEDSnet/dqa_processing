@@ -398,12 +398,12 @@ pull_dqa_table_names_post <- function(schema_name=config('results_schema')) {
      string_name<-tbls_to_apply[i]
      app_name<-check_app_tbl$check_app[i]
      # find the output pp table
-     if(config('new_site_pp')) {
-       tbl_dq_post <-
-         results_tbl_other(string_name)
-     }else{
+     # if(config('new_site_pp')) {
+     #   tbl_dq_post <-
+     #     results_tbl_other(string_name)
+     # }else{
        tbl_dq_post <- results_tbl(string_name)
-     }
+     # }
 
      # apply filter if specified
      if(!is.na(check_app_tbl$col_filter[i])){
