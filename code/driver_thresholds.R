@@ -1,253 +1,96 @@
-# Top-level code for execution of data request
+# Anomaly detection for thresholds ----
+# BMC ----
+message('BMC anomaly thresholds')
+bmc_thresh<-results_tbl('bmc_anom_pp')%>%distinct(check_type, check_name, site,
+                                                  lower_tail, upper_tail)%>%
+  collect()%>%
+  pivot_longer(cols=c(lower_tail, upper_tail),
+               names_to="threshold_operator",
+               values_to="threshold",
+               values_drop_na=TRUE)%>%
+  mutate(threshold_operator=case_when(threshold_operator=='lower_tail'~'lt',
+                                      threshold_operator=='upper_tail'~'gt'),
+         check_name_app=paste0(check_name, '_rows'),
+         application='rows')%>%
+  filter(threshold_operator=='lt')
 
-suppressPackageStartupMessages(library(dplyr))
-suppressPackageStartupMessages(library(rlang))
-suppressPackageStartupMessages(library(tibble))
-suppressPackageStartupMessages(library(readr))
-suppressPackageStartupMessages(library(stringr))
-suppressPackageStartupMessages(library(tidyr))
-suppressPackageStartupMessages(library(purrr))
-
-# Need to do this for assignInNamespace to work
-suppressPackageStartupMessages(library(dbplyr))
-
-# Required for execution using Rscript
-suppressPackageStartupMessages(library(methods))
-
-#' Set up the execution environment
-#'
-#' The .load() function sources the R files needed to execute the query
-#' and sets up the execution environment.  In particular, all of the base
-#' framework files, as well as files inthe code_dir with names matching
-#' `cohort_*.R` or `analyze_*.R` will be sourced.
-#'
-#' This function is usually run automatically when the `run.R` file is sourced
-#' to execute the request.  It may also be executed manually during an
-#' interactive session to re-source changed code or to re-establish a connection
-#' to the database.
-#'
-#' **N.B.** You will almost never have to edit this function.
-#'
-#' @param here The name of the top-level directory for the request.  The default
-#'   is `config('base_dir')` if the config function has been set up, or the
-#'   global variable `base_dir` if not.
-#'
-#' @return The value of `here`.
-#' @md
-.load <- function(here = ifelse(typeof(get('config')) == 'closure',
-                                config('base_dir'), base_dir)) {
-  source(file.path(here, 'code', 'config.R'))
-  source(file.path(here, 'code', 'req_info.R'))
-  source(config('site_info'))
-  source(file.path(here, config('subdirs')$code_dir, 'setup.R'))
-  source(file.path(here, config('subdirs')$code_dir, 'codesets.R'))
-  for (fn in list.files(file.path(here, config('subdirs')$code_dir),
-                        'util_.+\\.R', full.names = TRUE))
-    source(fn)
-  for (fn in list.files(file.path(here, config('subdirs')$code_dir),
-                        'cohort_.+\\.R', full.names = TRUE))
-    source(fn)
-  for (fn in list.files(file.path(here, config('subdirs')$code_dir),
-                        'analyze_.+\\.R', full.names = TRUE))
-    source(fn)
-  source(file.path(here, config('subdirs')$code_dir, 'cohorts.R'))
-
-  .env_setup()
-
-  for (def in c('retain_intermediates', 'results_schema')) {
-    if (is.na(config(def)))
-      config(def, config(paste0('default_', def)))
-  }
-
-  here
-}
-
-#' Execute the request
-#'
-#' This function presumes the environment has been set up, and executes the
-#' steps of the request.
-#'
-#' In addition to performing queries and analyses, the execution path in this
-#' function should include periodic progress messages to the user, and logging
-#' of intermediate totals and timing data through [append_sum()].
-#'
-#' This function is also typically executed automatically, but is separated from
-#' the setup done in [.load()] to facilitate direct invocation during
-#' development and debugging.
-#'
-#' @param base_dir The name of the top-level directory for the request.  The default
-#'   is `config('base_dir')`, which should always be valid after execution of
-#'   [.load()].
-#'
-#' @return The return value is dependent on the content of the request, but is
-#'   typically a structure pointing to some or all of the retrieved data or
-#'   analysis results.  The value is not used by the framework itself.
-#' @md
-.run  <- function(base_dir = config('base_dir')) {
-
-  message('Starting execution with framework version ',
-          config('framework_version'))
-
-  rslt <- list()
-  # V58: Rename thresholds file
-  thresh_old_patched<-read_codeset('threshold_limits','ccdcc')%>%
-    mutate(check_type=case_when(check_type=='pf'~'cfd',
-                                TRUE~check_type),
-           check_name=str_replace(check_name, 'pf', 'cfd'))%>%
-    mutate(check_name=case_when(check_name=='dcon_pts_ckd-dx_htn-rx'~'dcon_ckd_dx_htn_rx',
-                                check_name=='dcon_ed_visits_conds'~'dcon_ED_visits_ED_conds',
-                                check_name=='dcon_ip_visits_conds'~'dcon_IP_visits_IP_conds',
-                                check_name=='dcon_op_visits_conds'~'dcon_OP_visits_OP_conds',
-                                check_name=='cfd_prdf_emergency'~'cfd_prdr_emergency',
-           TRUE~check_name))
-  name_xwalk<-results_tbl('dqa_check_descriptions')%>%select(old_check_name, check_name)%>%
-    mutate(check_name=case_when(check_name=='scp_labssodium'~'ecp_labssodium',
-                                TRUE~check_name))%>%
-    collect()
-  old_not_new<-thresh_old_patched%>%anti_join(name_xwalk, by = c('check_name'='old_check_name'))
-  new_not_old<-name_xwalk%>%anti_join(thresh_old_patched, by = c('old_check_name'='check_name'))
-  # --- USE THIS to get from old to new check_name + check_application ----
-  threshold_map<-thresh_old_patched%>%
-    inner_join(name_xwalk%>%rename(check_name_new=check_name),
-               by=c('check_name'='old_check_name'))%>%
-    rename(check_name_old=check_name)%>%
-    mutate(check_name_app_old=paste0(check_name_old, "_", application),
-           check_name_app_new=paste0(check_name_new, "_", application))
-  new_th_names<-thresh_old_patched%>%
-    inner_join(name_xwalk%>%rename(check_name_new=check_name),
-               by=c('check_name'='old_check_name'))%>%
-    select(-check_name)%>%
-    rename(check_name=check_name_new)%>%
-    select(check_type, check_name, application, threshold, threshold_operator)
-  output_tbl(new_th_names,
-             name='thresholds_v58',
-             file=TRUE,
-             db=FALSE)
-  # v59
-  thresholds_v59<-read_codeset('thresholds_v58','cccdc')%>%
-    rename(check_name_v58=check_name)%>%
-    left_join(results_tbl('new_name_adjusts_v59')%>%collect(),
-              by = c('check_name_v58'='new_name'))%>%
-    mutate(check_name=coalesce(fixed_new_name, check_name_v58))%>%
-    select(check_type, check_name, application, threshold, threshold_operator)
-  write_csv(thresholds_v59,
-            file.path(getwd(),'specs','thresholds_v59.csv'))
+# ECP ----
+message("ECP anomaly thresholds")
+ecp_thresh<-results_tbl('ecp_anom_pp')%>%distinct(check_type, check_name, site,
+                                                  lower_tail, upper_tail)%>%
+  pivot_longer(cols=c(lower_tail, upper_tail),
+               names_to="threshold_operator",
+               values_to="threshold",
+               values_drop_na=TRUE)%>%
+  mutate(threshold_operator=case_when(threshold_operator=='lower_tail'~'lt',
+                                      threshold_operator=='upper_tail'~'gt'),
+         check_name_app=paste0(check_name, '_person'),
+         application='person')%>%
+  filter(threshold_operator=='lt')%>%
+  collect()
+# DP ----
+message("Date plausibility thresholds")
+dp_thresh<-results_tbl('dp_anom_pp')%>%distinct(check_type, check_name, site,
+                                                lower_tail, upper_tail, check_name_app)%>%
+  pivot_longer(cols=c(lower_tail, upper_tail),
+               names_to="threshold_operator",
+               values_to="threshold",
+               values_drop_na=TRUE)%>%
+  mutate(threshold_operator=case_when(threshold_operator=='lower_tail'~'lt',
+                                      threshold_operator=='upper_tail'~'gt'),
+         application='rows')%>%
+  filter(threshold_operator=='gt')%>%
+  collect()
 
 
-  # Anomaly detection for thresholds ----
-  # BMC ----
-  message('BMC anomaly thresholds')
-  # doesnt work yet because no outliers
-  rslt$bmc_thresh<-results_tbl('bmc_anom_pp')%>%distinct(check_type, check_name, site,
-                                               lower_tail, upper_tail)%>%
-    collect()%>%
-    pivot_longer(cols=c(lower_tail, upper_tail),
-                 names_to="threshold_operator",
-                 values_to="threshold",
-                 values_drop_na=TRUE)%>%
-    mutate(threshold_operator=case_when(threshold_operator=='lower_tail'~'lt',
-                                        threshold_operator=='upper_tail'~'gt'),
-           check_name_app=paste0(check_name, '_rows'),
-           application='rows')%>%
-    filter(threshold_operator=='lt')
+# default thresholds -----
+thresholds_standard<-format_default_thresholds(std_thresholds=read_codeset('threshold_limits', 'cccdc'),
+                                               anom_thresholds=bind_rows(bmc_thresh,ecp_thresh)%>%
+                                                 bind_rows(dp_thresh))
 
-  # ECP ----
-  message("ECP anomaly thresholds")
-  rslt$ecp_thresh<-results_tbl('ecp_anom_pp')%>%distinct(check_type, check_name, site,
-                                               lower_tail, upper_tail)%>%
-    pivot_longer(cols=c(lower_tail, upper_tail),
-                 names_to="threshold_operator",
-                 values_to="threshold",
-                 values_drop_na=TRUE)%>%
-    mutate(threshold_operator=case_when(threshold_operator=='lower_tail'~'lt',
-                                        threshold_operator=='upper_tail'~'gt'),
-           check_name_app=paste0(check_name, '_person'),
-           application='person')%>%
-    filter(threshold_operator=='lt')%>%
-    collect()
+message('Finding previous thresholds')
+# Find n-1 thresholds for those that should be re-set or stop flagging
+redcap_prev <- get_argos_default()$qual_tbl(name='dqa_issues_redcap',
+                                            schema_tag='dqa_rox',
+                                            db=config('db_src_prev'))%>%
+  mutate(threshold_operator=case_when(threshop=='greater than'~'gt',
+                                      threshop=='less than'~'lt'),
+         rc_finalflag=case_when(finalflag=='Continue to flag'~1L,
+                                finalflag=='Stop flagging'~2L,
+                                finalflag=='Continue flagging with new threshold'~3L,
+                                finalflag=='Other'~4L))%>%
+  # bring in ndq issues that should stop being flagged or assigned new thresholds
+  filter(rc_finalflag%in%c(2L,3L)|
+  # and ones from prior ssdqa to keep flagging
+           (rc_finalflag==1L&app=='ssdqa'))%>%
+  collect()
 
-  # default thresholds -----
-  # v59-specific patch
-  rslt$thresholds_standard<-format_default_thresholds(std_thresholds=read_codeset('thresholds_v59', 'cccdc'),
-                                                      anom_thresholds=bind_rows(rslt$bmc_thresh,
-                                                                                rslt$ecp_thresh))
-
-  message('Finding previous thresholds')
-  # Find n-1 thresholds for those that should be re-set or stop flagging
-  rslt$redcap_prev <- .qual_tbl(name='dqa_issues_redcap',
-                                schema='dqa_rox',
-                                db=config('db_src_prev'))%>%
-    mutate(threshold_operator=case_when(threshop=='greater than'~'gt',
-                                        threshop=='less than'~'lt'),
-           rc_finalflag=case_when(finalflag=='Continue to flag'~1L,
-                                  finalflag=='Stop flagging'~2L,
-                                  finalflag=='Continue flagging with new threshold'~3L,
-                                  finalflag=='Other'~4L))%>%
-    filter(rc_finalflag%in%c(2L,3L))%>%collect()
-  # -- nothing meets this so no need to carry forward...
-
-  # use this mod for v59!
-  rslt$thresholds_history<-.qual_tbl(name='thresholds_history',
-                                     schema='dqa_rox',
-                                     db=config('db_src_prev'))%>%collect()%>%
-    rename(check_name_v58=check_name)%>%
-    left_join(results_tbl('new_name_adjusts_v59')%>%collect(), by = c('check_name_v58'='new_name'))%>%
-    mutate(check_app=str_extract(check_name_app,".*_(.*)",group=1),
-           check_name=coalesce(fixed_new_name, check_name_v58),
-           check_name_app_new=paste0(check_name, "_", check_app))%>%
-    select(check_type, check_name_app_new, check_name, threshold_operator, database_version,
-           site, threshold, rc_finalflag)%>%
-    rename(check_name_app=check_name_app_new)
+thresholds_history<-get_argos_default()$qual_tbl(name='thresholds_history',
+                                                 schema_tag='dqa_rox',
+                                                 db=config('db_src_prev'))%>%collect()
 
 
-  rslt$thresholds_this_version<-determine_thresholds(default_thresholds=rslt$thresholds_standard,
-                                                     newset_thresholds=rslt$redcap_prev,
-                                                     history_thresholds=rslt$thresholds_history)
-  message('Creating table to track threshold versions')
-  rslt$thresholds_history_new <- bind_rows(rslt$thresholds_this_version,
-                                           rslt$thresholds_history)
-  output_tbl(rslt$thresholds_history_new,
-             name='thresholds_history')
+thresholds_this_version<-determine_thresholds(default_thresholds=thresholds_standard,
+                                              newset_thresholds=redcap_prev,
+                                              history_thresholds=thresholds_history)
+message('Creating table to track threshold versions')
+thresholds_history_new <- bind_rows(thresholds_this_version,
+                                    thresholds_history)
+output_tbl(thresholds_history_new,
+           name='thresholds_history')
 
-  message('Create threshold table')
-  rslt$thresholds_applied <- apply_thresholds(check_app_tbl=read_codeset('check_apps', col_types = 'cccccc'),
-                                              threshold_tbl = rslt$thresholds_this_version)
+message('Create threshold table')
+thresholds_applied <- apply_thresholds(check_app_tbl=read_codeset('check_apps', col_types = 'cccccc'),
+                                       threshold_tbl = thresholds_this_version)
 
 
-  output_list_to_db(rslt$thresholds_applied,
-                    append=FALSE)
-  output_tbl(rslt$thresholds_applied$thr_mf_visitid_output_pp_rows,
-             name='thr_mf_visitid_output_pp_rows',
-             file=FALSE,
-             db=TRUE)
-  rslt$threshold_violations <- reduce(.x=rslt$thresholds_applied,
-                                      .f=dplyr::bind_rows)%>%
-    filter(violation&(is.na(rc_finalflag)|rc_finalflag!=2))
+output_list_to_db(thresholds_applied,
+                  append=FALSE)
 
-  copy_to_new(df=rslt$threshold_violations,
-              name='threshold_tbl_violations',
-              temporary=FALSE)
+threshold_violations <- reduce(.x=thresholds_applied,
+                               .f=dplyr::bind_rows)%>%
+  filter(violation&
+          (is.na(rc_finalflag)|rc_finalflag!=2))
 
-  message('Done.')
-
-  invisible(rslt)
-
-}
-
-#' Set up and execute a data request
-#'
-#' This function encapsulates a "production" run of the data request.  It sets
-#' up the environment, executes the request, and cleans up the environment.
-#'
-#' Typically, the `run.R` file calls run_request() when in a production mode.
-#'
-#' @param base_dir Path to the top of the data request files.  This is
-#'   typically specified in `run.R`.
-#'
-#' @return The result of [.run()].
-#' @md
-run_request <- function(base_dir) {
-  base_dir <- .load(base_dir)
-  on.exit(.env_cleanup())
-  .run(base_dir)
-}
+output_tbl(threshold_violations,
+            name='threshold_tbl_violations')

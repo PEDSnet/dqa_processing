@@ -1,0 +1,192 @@
+---
+title: "Threshold Summary"
+output:
+  bookdown::html_document2:
+    fig_cap: TRUE
+    df_print: paged
+    number_sections: FALSE
+    toc: yes
+    toc_depth: 4
+    toc_collapsed: yes
+    toc_float: yes
+knit: (function(inputFile, encoding) {
+  rmarkdown::render(inputFile, encoding = encoding, 
+  output_file = paste0('threshold_summary_v61.html') )})
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
+require(tidyr)
+require(knitr)
+require(kableExtra)
+require(stringr)
+require(tibble)
+require(ggplot2)
+require(plotly)
+require(RColorBrewer)
+require(argos)
+require(srcr)
+require(tidyverse)
+require(ggiraph)
+library(gt)
+site<-'dcc'
+
+ndq_session<-argos$new('ndq_session')$init_session(
+  db_src = Sys.getenv('PEDSNET_DB_SRC_CONFIG_BASE'),
+  cdm_schema = paste0(site, '_pedsnet'), 
+  results_schema = 'dqa_rox', 
+  retain_intermediates = FALSE,
+  db_trace = FALSE, 
+  results_name_tag = ''
+)
+prev_session<-argos$new('ndq_session_prev')$init_session(
+  db_src = Sys.getenv('PEDSNET_DB_SRC_CONFIG_BASE_PREV'), 
+  cdm_schema = paste0(site, '_pedsnet'), 
+  results_schema = 'dqa_rox',
+  retain_intermediates = FALSE,
+  db_trace = FALSE,
+  results_name_tag = ''
+)
+set_argos_default(ndq_session)
+```
+
+# Purpose
+
+Provide visualizations of all thresholds applied in PEDSnet Network Data Quality (NDQ) compared against all site output values.
+
+
+# Values against thresholds
+
+* Each plot is one check application
+* Colored dot = site value for check application
+* Horizontal dash/es = threshold/s for check application
+* Grey area = zone for threshold violations
+* Hover over the threshold (line) or value (dot) to see the actual site value and threshold. Site values outside of the axis limits may not appear on the plot, but the value will be displayed upon hover
+
+```{r}
+plt_thrs_val<-function(op,
+                       direction,
+                       n_facet_col=3){
+  if(direction=='lt'){
+    op_col<-op%>%filter(!is.na(threshold))%>%
+      mutate(tt=paste0("value: ",round(value_output,2),
+                       "\nthreshold: ",round(threshold,2)))
+    
+    plt<-ggplot(op_col, aes(x=site,y=value_output, tooltip=tt))+
+      geom_segment(aes(x=site,xend=site,y=0,yend=value_output))+
+      geom_point_interactive(aes(color=site))+
+      geom_point_interactive(aes(x=site,y=threshold),size=3,shape="\u2014")+
+      geom_bar(aes(x=site,y=threshold),stat="identity",alpha=0.2)+
+      facet_wrap(~check_name_app, scales="free_x", ncol=n_facet_col)+
+      theme_minimal()+
+      theme(legend.position = "none",
+            axis.text.x=element_text(angle=45,vjust=1,hjust=1))+
+      ylim(c(0,1))
+  }else if(direction=='gt'){
+    op_col<-op%>%filter(!is.na(threshold))%>%
+      mutate(tt=paste0("value: ",round(value_output,2),
+                       "\nthreshold: ",round(threshold,2)))
+    
+    plt<-ggplot(op_col, aes(x=site,y=value_output, tooltip=tt))+
+      geom_segment(aes(x=site,xend=site,y=1,yend=threshold),linewidth = 5,alpha=0.2)+
+      geom_segment(aes(x=site,xend=site,y=0,yend=value_output))+
+      geom_point_interactive(aes(color=site))+
+      geom_point_interactive(aes(x=site,y=threshold),size=3,shape="\u2014")+
+      facet_wrap(~check_name_app, scales="free_x", ncol=n_facet_col)+
+      theme_minimal()+
+      theme(legend.position = "none",
+            axis.text.x=element_text(angle=45,vjust=1,hjust=1))+
+      ylim(c(0,1))
+    }else  if(direction=='both'){
+    op_col<-op%>%
+      mutate(tt=paste0("value: ",round(value_output,2),
+                       "\nthreshold: <",round(lt,2), "or >",round(gt,2)))
+    plt<-ggplot(op_col, aes(x=site,y=value_output, tooltip=tt))+
+      geom_segment(aes(x=site,xend=site,y=-0.5,yend=lt),linewidth = 5,alpha=0.2)+
+      geom_segment(aes(x=site,xend=site,y=gt,yend=0.5),linewidth = 5,alpha=0.2)+
+      geom_point_interactive(aes(color=site))+
+      geom_point_interactive(aes(x=site,y=lt),size=3,shape="\u2014")+
+      geom_point_interactive(aes(x=site,y=gt),size=3,shape="\u2014")+
+      facet_wrap(~check_name_app, scales="free_x", ncol=n_facet_col)+
+      theme_minimal()+
+      theme(legend.position = "none",
+            axis.text.x=element_text(angle=45,vjust=1,hjust=1))+
+      ylim(c(-.5,.5))
+  }
+  return(girafe(ggobj=plt))
+}
+```
+
+### Data Cycle Changes (DC)
+
+#### Row Application
+
+```{r dc_rows, fig.height=22}
+dc_op_rows<-results_tbl('thr_dc_output_pp_rows')%>%collect()%>%
+  filter(!is.na(threshold))%>%
+  select(-c(violation,rc_finalflag))%>%
+  pivot_wider(names_from=threshold_operator,
+              values_from=threshold)
+plt_thrs_val(op=dc_op_rows,direction="both")
+```
+
+#### Person Application
+
+```{r dc_person, fig.height=20}
+plt_thrs_val(op=results_tbl('thr_dc_output_pp_person'),direction="gt")
+```
+
+### Best Mapped Concepts (BMC)
+
+```{r bmc_op}
+plt_thrs_val(results_tbl('thr_bmc_anom_pp_rows'),direction='lt')
+```
+
+### Clinical Fact Documentation (CFD)
+
+```{r cfd_op, fig.height=24}
+plt_thrs_val(results_tbl('thr_cfd_output_pp_visits'),direction='lt')
+```
+
+### Domain Concordance (DCON)
+
+```{r dcon_op, fig.height=8}
+plt_thrs_val(results_tbl('thr_dcon_output_pp_concordance'),direction='lt')
+```
+
+### Expected Concepts Present (ECP)
+
+```{r ecp_op, fig.height=20}
+plt_thrs_val(results_tbl('thr_ecp_anom_pp_person'),direction='lt')
+```
+
+### Missing Field: Visit ID (MF)
+
+```{r mf_op}
+plt_thrs_val(results_tbl('thr_mf_visitid_output_pp_rows'),direction='gt')
+```
+
+### Unmapped Concepts (UC)
+
+```{r uc_op, fig.height=10}
+plt_thrs_val(results_tbl('thr_uc_output_pp_rows'),direction='gt')
+```
+
+### Vocabulary Conformance (VC)
+
+```{r vc_op, fig.height=8}
+plt_thrs_val(results_tbl('thr_vc_violations_pp_rows'),direction='gt')
+```
+
+### Value Set Conformance (VS)
+
+```{r vs_op}
+plt_thrs_val(results_tbl('thr_vs_violations_pp_rows'),direction='gt')
+```
+
+### Date Plausibility (DP)
+
+```{r dp_op}
+plt_thrs_val(results_tbl('thr_dp_anom_pp_rows'),direction='gt')
+```

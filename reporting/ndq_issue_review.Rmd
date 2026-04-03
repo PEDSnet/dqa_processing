@@ -1,0 +1,202 @@
+---
+title: "NDQ Issue Review"
+output:
+  bookdown::html_document2:
+    fig_cap: TRUE
+    df_print: paged
+    number_sections: FALSE
+    toc: yes
+    toc_depth: 4
+    toc_collapsed: yes
+    toc_float: yes
+params:
+    internal: TRUE
+knit: (function(inputFile, encoding) {
+  rmarkdown::render(inputFile, encoding = encoding, 
+  output_file = paste0('ndq_issue_review_', format(Sys.time(), '%Y%m%d'), '.html') )})
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
+require(tidyr)
+require(knitr)
+require(kableExtra)
+require(stringr)
+require(tibble)
+require(ggplot2)
+require(plotly)
+require(RColorBrewer)
+require(argos)
+require(srcr)
+require(tidyverse)
+require(ggiraph)
+library(gt)
+library(forcats)
+source('../code/cohort_colors.R')
+site <- 'dcc'
+ndq_session<-argos$new('ndq_session')$init_session(
+  db_src = Sys.getenv('PEDSNET_DB_SRC_CONFIG_BASE'),
+  cdm_schema = paste0(site, '_pedsnet'), 
+  results_schema = 'dqa_rox', 
+  retain_intermediates = FALSE,
+  db_trace = FALSE, 
+  results_name_tag = ''
+)
+
+prev_session<-argos$new('ndq_session_prev')$init_session(
+  db_src = Sys.getenv('PEDSNET_DB_SRC_CONFIG_BASE_PREV'), 
+  cdm_schema = paste0(site, '_pedsnet'), 
+  results_schema = 'dqa_rox',
+  retain_intermediates = FALSE,
+  db_trace = FALSE,
+  results_name_tag = ''
+)
+
+set_argos_default(ndq_session)
+```
+
+```{r table_setup}
+sitenames<-results_tbl('thresholds_history')%>%filter(site!='default')%>%distinct(site)%>%arrange(site)%>%pull()
+metadata<-results_tbl('dqa_check_metadata')%>%
+  collect()
+ 
+viol<-results_tbl('threshold_tbl_violations')%>%
+  collect()%>%
+  left_join(metadata, by='check_name')%>%
+  mutate(value_output=round(value_output,2))
+
+viol_prev_ct<-prev_session$results_tbl('threshold_tbl_violations')%>%
+  group_by(site)%>%
+  summarise(n_prev=n())%>%
+  collect()
+n_viol_by_checktype<-metadata%>%
+  left_join(viol,by=c('check_name','check_type'))%>%
+  group_by(check_type)%>%
+  summarise(n_sites=case_when(all(is.na(site))~0,
+                              TRUE~n_distinct(site)-1),
+            n_issues=sum(violation, na.rm=TRUE))%>%
+  ungroup()
+n_viol_bycheck<-viol%>%
+  group_by(check_type)%>%
+  mutate(num_total=n_distinct(site))%>%
+  ungroup()%>%
+  group_by(check_type,check_name_app, num_total)%>%
+  summarise(n_sites=n_distinct(site))%>%
+  ungroup()%>%
+  mutate(check_type=paste0(check_type, " (", num_total, " total sites)"))%>%
+  select(-num_total)
+```
+
+# Purpose
+
+Provide detail on data quality issues that we intend to raise with sites during routine data cycle. Contains both study specific data quality issues submitted within the last quarter or rolled over from prior data cycles in addition to issues flagged in network data quality assessment.
+
+
+# NDQ: Checks without Thresholds
+
+```{r}
+find_no_threshold<-function(db=config('db_src'),
+                            schema_name=config('results_schema')){
+   tbl_names <-
+    db %>%
+    DBI::dbListObjects(DBI::Id(schema= schema_name)) %>%
+    dplyr::pull(table) %>%
+    purrr::map(~slot(.x, 'name')) %>%
+    dplyr::bind_rows()%>%
+    filter(str_detect(table, '^thr_'))%>%
+     select(table)%>%pull()
+     
+     rslt<-tibble(check_name=NA_character_,
+                  check_name_app=NA_character_)
+     for(i in 1:length(tbl_names)){
+       new_rslts<-results_tbl(tbl_names[i])%>%
+         filter(is.na(threshold),site!='total')%>%
+         distinct(check_name, check_name_app)%>%collect()
+       if(all(is.na(rslt))){rslt<-new_rslts}else{rslt<-rslt%>%bind_rows(new_rslts)}
+     }
+     return(rslt)
+}
+
+no_threshold<-find_no_threshold(db=ndq_session$config('db_src'),
+                             schema_name='dqa_rox')%>%
+  left_join(metadata, by = 'check_name')
+
+no_threshold_expected<-no_threshold%>%
+  filter(str_detect(check_name,'vispc|viscn')|
+           check_name%in%c('dcon_labsfluneg-condsflu',
+                           'dcon_labsrsvneg-condsrsv'))
+```
+
+## No Threshold Expected
+
+```{r nothreshexpect}
+gt(no_threshold_expected%>%
+     select(check_type, check_name, check_domain, check_application, full_description)%>%
+     arrange(check_name))%>%
+    tab_options(row_group.font.weight = 'bold',
+              container.height='750px',
+              container.overflow.y=TRUE)
+```
+
+## No Threshold - may want to assign
+
+```{r}
+gt(no_threshold%>%
+     anti_join(no_threshold_expected, by = 'check_name')%>%
+     select(check_type, check_name, check_domain, check_application, full_description)%>%
+     arrange(check_name))%>%
+    tab_options(row_group.font.weight = 'bold',
+              container.height='750px',
+              container.overflow.y=TRUE)
+```
+
+# SSDQA Issues
+
+Issues raised in previous cycle + responses
+
+```{r}
+prev_ssdqa<-prev_session$results_tbl('dqa_issues_redcap')%>%
+  filter(app=='ssdqa')%>%collect()%>%
+  select(site, narrative, priority, status, fix_yn, violation_why, finalflag)
+```
+
+
+```{r}
+gt(prev_ssdqa)%>%
+  fmt_markdown(columns=c(narrative))%>%
+  data_color(columns=c(site))%>%
+  data_color(
+  columns = priority,
+  fn = function(x) coalesce(c("High"="#f7786f", "Medium"="#f7d36f", "Low"="#6fc973")[as.character(x)], "gray"))
+```
+
+# All issues to be raised
+
+new_issue indicates whether this issue was raised in the previous data cycle (N) or not (Y)
+
+```{r}
+prev_issues<-prev_session$results_tbl('threshold_tbl_violations')%>%
+  select(site, check_name_app, threshold, value_output)%>%
+  rename(threshold_prev=threshold,
+         value_prev=value_output)%>%
+  collect()
+new_issues<-viol%>%
+  left_join(prev_issues, by = c('site','check_name_app'))%>%
+  mutate(new_issue=case_when(is.na(value_prev)~"Y",
+                             TRUE~"N"))
+
+gt(new_issues%>%
+     select(site, check_type, check_name_app,threshold,threshold_operator,value_output,new_issue,value_prev)%>%
+     arrange(site)%>%
+     group_by(site))%>%
+    tab_options(row_group.background.color = 'aliceblue',
+              row_group.font.weight = 'bold',
+              container.height='750px',
+              container.overflow.y=TRUE)%>%
+  fmt_number(decimals=2)%>%
+  data_color(
+  columns = new_issue,
+  fn = function(x) coalesce(c("Y"="#f7786f", "N"="#f7d36f")[as.character(x)], "gray"))
+```
+

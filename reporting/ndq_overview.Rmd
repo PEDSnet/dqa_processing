@@ -1,0 +1,148 @@
+---
+title: "NDQ Cycle Overview"
+output:
+  bookdown::html_document2:
+    fig_cap: TRUE
+    df_print: paged
+    number_sections: FALSE
+    toc: yes
+    toc_depth: 4
+    toc_collapsed: yes
+    toc_float: yes
+knit: (function(inputFile, encoding) {
+  rmarkdown::render(inputFile, encoding = encoding, 
+  output_file = paste0('ndq_overview_v61.html') )})
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
+require(tidyr)
+require(knitr)
+require(kableExtra)
+require(stringr)
+require(tibble)
+require(ggplot2)
+require(plotly)
+require(RColorBrewer)
+require(argos)
+require(srcr)
+require(tidyverse)
+library(gt)
+site <- 'dcc'
+ndq_session<-argos$new('ndq_session')$init_session(
+  db_src = Sys.getenv('PEDSNET_DB_SRC_CONFIG_BASE'),
+  cdm_schema = paste0(site, '_pedsnet'), 
+  results_schema = 'dqa_rox', 
+  retain_intermediates = FALSE,
+  db_trace = FALSE, 
+  results_name_tag = ''
+)
+
+prev_session<-argos$new('ndq_session_prev')$init_session(
+  db_src = Sys.getenv('PEDSNET_DB_SRC_CONFIG_BASE_PREV'), 
+  cdm_schema = paste0(site, '_pedsnet'), 
+  results_schema = 'dqa_rox',
+  retain_intermediates = FALSE,
+  db_trace = FALSE,
+  results_name_tag = ''
+)
+
+set_argos_default(ndq_session)
+```
+
+```{r table_setup}
+sitenames<-results_tbl('thresholds_history')%>%filter(site!='default')%>%distinct(site)%>%arrange(site)%>%pull()
+metadata<-results_tbl('dqa_check_metadata')%>%
+  collect()
+ 
+viol<-results_tbl('threshold_tbl_violations')%>%
+  collect()%>%
+  left_join(metadata, by='check_name')%>%
+  mutate(value_output=round(value_output,2))
+
+viol_prev_ct<-prev_session$results_tbl('threshold_tbl_violations')%>%
+  group_by(site)%>%
+  summarise(n_prev=n())%>%
+  collect()
+n_viol_by_checktype<-metadata%>%
+  left_join(viol,by=c('check_name','check_type'))%>%
+  group_by(check_type)%>%
+  summarise(n_sites=case_when(all(is.na(site))~0,
+                              TRUE~n_distinct(site)-1),
+            n_issues=sum(violation, na.rm=TRUE))%>%
+  ungroup()
+n_viol_bycheck<-viol%>%
+  group_by(check_type)%>%
+  mutate(num_total=n_distinct(site))%>%
+  ungroup()%>%
+  group_by(check_type,check_name_app, num_total)%>%
+  summarise(n_sites=n_distinct(site))%>%
+  ungroup()%>%
+  mutate(check_type=paste0(check_type, " (", num_total, " total sites)"))%>%
+  select(-num_total)
+```
+
+
+
+# Issue Quantification
+
+## Network-Wide Issue Frequency by Check Type
+
+Number of sites with at least one threshold check violation by check type
+
+```{r}
+gt(n_viol_by_checktype%>%
+     arrange(desc(n_sites)))
+```
+```{r}
+ggplot(n_viol_by_checktype%>%filter(check_type!='Facts Over Time')%>%
+         mutate(check_type=fct_reorder(check_type,n_sites),
+                text=paste0(n_sites, "  (",n_issues,")")), 
+       aes(x=check_type,y=n_sites))+
+  geom_bar(stat="identity",fill="#8BBCB4", alpha=.75, width=.6)+
+  geom_text(aes(label=text),hjust=0.35)+
+  ylim(0,11)+
+  labs(x="Check Type",
+       y="Number of Sites (# issues)",
+       title="Frequency of DQ Issue Check Types")+
+  coord_flip()+
+  theme_classic()
+```
+
+```{r}
+ggplot(n_viol_by_checktype%>%filter(check_type!='Facts Over Time')%>%
+         mutate(check_type=fct_reorder(check_type,n_sites)), 
+       aes(x=check_type,y=n_issues))+
+  geom_bar(stat="identity",fill="#C884A7", alpha=.75, width=.6)+
+  geom_text(aes(label=n_issues),hjust=1.2)+
+  scale_y_continuous(breaks = scales::pretty_breaks(n = 5))+
+  labs(x="Check Type",
+       y="Number of Issues",
+       title="Frequency of DQ Issues by Check Type")+
+  coord_flip()+
+  theme_classic()
+```
+
+## Issues per site
+
+Number of issues raised in the previous round of data (n_prev) vs. current round (n_this_round)
+
+```{r}
+gt(viol%>%
+     group_by(site)%>%
+     summarise(n_this_round=n())%>%
+     ungroup()%>%
+     left_join(viol_prev_ct, by ='site')%>%
+     select(site, n_prev, n_this_round))
+```
+
+# Check name application + number of sites with value violating threshold
+
+```{r}
+gt(n_viol_bycheck%>%
+     group_by(check_type))%>%
+    tab_options(row_group.background.color = 'bisque',
+              row_group.font.weight = 'bold',
+              container.height='750px',
+              container.overflow.y=TRUE)
+```
