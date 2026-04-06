@@ -1,5 +1,4 @@
 ---
-title: "NDQ Cycle Overview"
 output:
   bookdown::html_document2:
     fig_cap: TRUE
@@ -9,9 +8,9 @@ output:
     toc_depth: 4
     toc_collapsed: yes
     toc_float: yes
-knit: (function(inputFile, encoding) {
-  rmarkdown::render(inputFile, encoding = encoding, 
-  output_file = paste0('ndq_overview_v61.html') )})
+params:
+    set_title: "NDQ Cycle Overview (version)"
+title: "`r params$set_title`"
 ---
 
 ```{r setup, include=FALSE}

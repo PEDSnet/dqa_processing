@@ -1,5 +1,4 @@
 ---
-title: "NDQ Issue Review"
 output:
   bookdown::html_document2:
     fig_cap: TRUE
@@ -10,10 +9,8 @@ output:
     toc_collapsed: yes
     toc_float: yes
 params:
-    internal: TRUE
-knit: (function(inputFile, encoding) {
-  rmarkdown::render(inputFile, encoding = encoding, 
-  output_file = paste0('ndq_issue_review_', format(Sys.time(), '%Y%m%d'), '.html') )})
+    set_title: "NDQ Issue Review (version)"
+title: "`r params$set_title`"
 ---
 
 
@@ -33,6 +30,7 @@ require(tidyverse)
 require(ggiraph)
 library(gt)
 library(forcats)
+library(fontawesome)
 source('../code/cohort_colors.R')
 site <- 'dcc'
 ndq_session<-argos$new('ndq_session')$init_session(
@@ -161,7 +159,6 @@ prev_ssdqa<-prev_session$results_tbl('dqa_issues_redcap')%>%
   select(site, narrative, priority, status, fix_yn, violation_why, finalflag)
 ```
 
-
 ```{r}
 gt(prev_ssdqa)%>%
   fmt_markdown(columns=c(narrative))%>%
@@ -171,9 +168,23 @@ gt(prev_ssdqa)%>%
   fn = function(x) coalesce(c("High"="#f7786f", "Medium"="#f7d36f", "Low"="#6fc973")[as.character(x)], "gray"))
 ```
 
+New issues to be raised this cycle
+
+```{r}
+ssdqa_new<-results_tbl('ssdqa_issues_new')%>%
+  select(site, narrative)%>%
+  collect()
+
+gt(ssdqa_new)%>%
+  fmt_markdown(columns=c(narrative))%>%
+  data_color(columns=c(site))
+```
+
+
 # All issues to be raised
 
-new_issue indicates whether this issue was raised in the previous data cycle (N) or not (Y)
+* `new_issue` indicates whether this issue was raised in the previous data cycle (N) or not (Y)
+* Symbols for each row indicate whether site has improved (`r fa("fas fa-arrow-up",fill="green")`), regressed (`r fa("fas fa-arrow-down",fill="red")`), or stayed the same compared with the prior cycle for recurrent issues.
 
 ```{r}
 prev_issues<-prev_session$results_tbl('threshold_tbl_violations')%>%
@@ -184,19 +195,42 @@ prev_issues<-prev_session$results_tbl('threshold_tbl_violations')%>%
 new_issues<-viol%>%
   left_join(prev_issues, by = c('site','check_name_app'))%>%
   mutate(new_issue=case_when(is.na(value_prev)~"Y",
-                             TRUE~"N"))
+                             TRUE~"N"),
+         better=case_when((new_issue=="N"&
+                            (value_output==value_prev|abs(value_prev-value_output)<.005))~"circle",
+                          (new_issue=="N"&
+                             (threshold_operator=="lt"&value_output>value_prev)|
+                             (threshold_operator=="gt"&value_output<value_prev))~"arrow-up",
+                          (new_issue=="N"&
+                             (threshold_operator=="lt"&value_output<value_prev)|
+                             (threshold_operator=="gt"&value_output>value_prev))~"arrow-down",
+                          new_issue=="Y"~"minus",
+                          TRUE~"circle"))
 
 gt(new_issues%>%
-     select(site, check_type, check_name_app,threshold,threshold_operator,value_output,new_issue,value_prev)%>%
+     select(site, check_type, check_name_app,threshold,threshold_operator,value_output,new_issue,value_prev, better)%>%
      arrange(site)%>%
      group_by(site))%>%
     tab_options(row_group.background.color = 'aliceblue',
               row_group.font.weight = 'bold',
               container.height='750px',
+              container.width='1000px',
               container.overflow.y=TRUE)%>%
   fmt_number(decimals=2)%>%
+  fmt_icon(columns=better,
+           fill_color = c("arrow-up" = "green", "arrow-down" = "red", "circle" = "black", "minus"="black"))%>%
   data_color(
-  columns = new_issue,
-  fn = function(x) coalesce(c("Y"="#f7786f", "N"="#f7d36f")[as.character(x)], "gray"))
+    columns = new_issue,
+    fn = function(x) coalesce(c("Y"="#f7786f", "N"="#f7d36f")[as.character(x)], "gray"))%>%
+  cols_label(
+    check_type=md("**check_type**"),
+    check_name_app=md("**check_name_app**"),
+    threshold=md("**threshold**"),
+    threshold_operator="",
+    value_output=md("**value_output**"),
+    new_issue=md("**new_issue**"),
+    value_prev=md("**value_prev**"),
+    better="")
+
 ```
 
