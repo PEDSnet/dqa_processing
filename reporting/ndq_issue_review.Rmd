@@ -123,7 +123,9 @@ no_threshold<-find_no_threshold(db=ndq_session$config('db_src'),
 no_threshold_expected<-no_threshold%>%
   filter(str_detect(check_name,'vispc|viscn')|
            check_name%in%c('dcon_labsfluneg-condsflu',
-                           'dcon_labsrsvneg-condsrsv'))
+                           'dcon_labsrsvneg-condsrsv',
+                           'uc_drugsrprt')|
+           str_detect(check_name, 'cfd_obs'))
 ```
 
 ## No Threshold Expected
@@ -156,7 +158,7 @@ Issues raised in previous cycle + responses
 ```{r}
 prev_ssdqa<-prev_session$results_tbl('dqa_issues_redcap')%>%
   filter(app=='ssdqa')%>%collect()%>%
-  select(site, narrative, priority, status, fix_yn, violation_why, finalflag)
+  select(site, check_name, narrative, priority, status, fix_yn, violation_why, finalflag)
 ```
 
 ```{r}

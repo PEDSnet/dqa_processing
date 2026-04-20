@@ -73,6 +73,15 @@ thresholds_history<-get_argos_default()$qual_tbl(name='thresholds_history',
 thresholds_this_version<-determine_thresholds(default_thresholds=thresholds_standard,
                                               newset_thresholds=redcap_prev,
                                               history_thresholds=thresholds_history)
+# replace uc_procsall-scid with the same as the site's threshold for uc_procsall
+thresholds_procsall<-thresholds_this_version%>%filter(check_name_app=='uc_procsall_rows')%>%
+  select(site, threshold)%>%
+  rename(t_new=threshold)
+thresholds_this_version<-thresholds_this_version%>%
+  left_join(thresholds_procsall, by = 'site')%>%
+  mutate(threshold=case_when(check_name_app=='uc_procsall-scid_rows'~t_new,
+                             TRUE~threshold))%>%
+  select(-t_new)
 message('Creating table to track threshold versions')
 thresholds_history_new <- bind_rows(thresholds_this_version,
                                     thresholds_history)

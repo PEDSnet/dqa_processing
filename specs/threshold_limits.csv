@@ -206,6 +206,6 @@ dc,dc_vised,person,0.15,gt
 dc,dc_drugsrprt,rows,-0.05,lt
 dc,dc_drugsrprt,rows,0.15,gt
 dc,dc_drugsrprt,person,0.15,gt
-uc,uc_drugsrprt,rows,0.25,gt
 uc,uc_procsall-scid,rows,0.2,gt
-uc,uc_pth,rows,0.2,gt
+uc,uc_pth,rows,0.15,gt
+dcon_visits,dcon_visgp-condswcc-procswcc,concordance,0.25,lt
